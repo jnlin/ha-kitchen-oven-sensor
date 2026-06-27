@@ -1,0 +1,12 @@
+# Binaries
+kitchen-camera
+kitchen-camera.test
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test files
+*.test
+*.out
