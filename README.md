@@ -9,6 +9,23 @@ A production-ready, cross-platform CLI tool written in Go that ingests an RTSP v
 - **Graceful Shutdown & Reconnection:** Automatically reconnects with backoff if the stream drops, and shuts down cleanly on OS interrupts (`SIGINT`, `SIGTERM`).
 - **Native FreeBSD & Linux Support:** Fully containerized multi-stage builds compatible with Linux Docker and native FreeBSD Podman.
 
+## Night-Vision (IR) Detection
+
+To handle Infrared (IR) night-vision streams where colors are converted to grayscale and the blue light source manifests as a bright grayscale highlight, the visual trigger logic uses an adaptive mode selector:
+1. **Grayscale Detection:** The frame is automatically checked for color saturation by calculating the channel variance ($|R-G| + |R-B| + |G-B|$) over a sampled grid of pixels. If the average variance is $< 10.0$ (on a scale of 0-255), the frame is processed in night-vision mode.
+2. **Daytime (Color) Mode:** Scans the entire frame for bright, highly saturated blue pixels matching $B > 180$, $B > R+80$, and $B > G+80$.
+3. **Nighttime (IR) Mode (Shift-Invariant Blob Detection):** Instead of using hardcoded coordinates, the algorithm scans the entire image to find connected components (blobs) of bright pixels (intensity $\ge 180$) using a Breadth-First Search (BFS). 
+
+To ensure robustness against camera rotation/pans and filter out date overlays or camera watermarks, blobs are filtered using the following invariants:
+* **Border Exclusion:** Blobs centered in the top 400 pixels or bottom 150 pixels of the frame are ignored (safely filtering out time overlays and bottom status indicators).
+* **Area Range:** Between $80$ and $400$ pixels.
+* **Aspect Ratio:** $\le 2.5$ (ensures the shape is circular/elliptical, not thin horizontal/vertical line reflections).
+* **Fill Ratio:** $\ge 0.40$ (ensures the component is compact and solid rather than sparse background noise).
+* **Core Peak Intensity:** Maximum pixel intensity inside the blob must be $\ge 240$.
+* **Overall Brightness:** Average pixel intensity inside the blob must be $\ge 210$.
+
+If any blob satisfies all of the above criteria, the blue light is classified as ON. This approach is completely location-invariant, working seamlessly if the camera moves, pans, or shifts.
+
 ## Setup & Configuration
 
 Configure the application using the following environment variables:

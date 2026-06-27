@@ -130,6 +130,62 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("night-negatives", func(t *testing.T) {
+		files, err := filepath.Glob("images/night-negative/*.jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(files) == 0 {
+			t.Log("Warning: No night negative snapshots found to test")
+			return
+		}
+		for _, file := range files {
+			f, err := os.Open(file)
+			if err != nil {
+				t.Errorf("failed to open %s: %v", file, err)
+				continue
+			}
+			img, _, err := image.Decode(f)
+			_ = f.Close()
+			if err != nil {
+				t.Errorf("failed to decode %s: %v", file, err)
+				continue
+			}
+			res := AnalyzeFrame(img, threshold)
+			if res.BlueLightDetected {
+				t.Errorf("expected night negative file %s to be negative, but got positive (blue light: %d/%d px)", file, res.BluePixelCount, threshold)
+			}
+		}
+	})
+
+	t.Run("night-positives", func(t *testing.T) {
+		files, err := filepath.Glob("images/night-bluelight/*.jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(files) == 0 {
+			t.Log("Warning: No night blue light snapshots found to test")
+			return
+		}
+		for _, file := range files {
+			f, err := os.Open(file)
+			if err != nil {
+				t.Errorf("failed to open %s: %v", file, err)
+				continue
+			}
+			img, _, err := image.Decode(f)
+			_ = f.Close()
+			if err != nil {
+				t.Errorf("failed to decode %s: %v", file, err)
+				continue
+			}
+			res := AnalyzeFrame(img, threshold)
+			if !res.BlueLightDetected {
+				t.Errorf("expected night positive file %s to be positive, but got negative (blue light: %d/%d px)", file, res.BluePixelCount, threshold)
+			}
+		}
+	})
 }
 
 func TestLoadAppConfig(t *testing.T) {
