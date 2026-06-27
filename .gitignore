@@ -10,3 +10,7 @@ kitchen-camera.test
 # Test files
 *.test
 *.out
+
+# Saved snapshots
+snapshot_*.jpg
+images/

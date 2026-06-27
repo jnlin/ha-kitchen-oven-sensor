@@ -23,25 +23,19 @@ func TestAnalyzeFrame(t *testing.T) {
 	t.Run("both absent (black background)", func(t *testing.T) {
 		img := createTestImage(100, 100, color.Black)
 		res := AnalyzeFrame(img, threshold)
-		if res.FireDetected {
-			t.Errorf("expected no fire, but got fire detected")
-		}
 		if res.BlueLightDetected {
 			t.Errorf("expected no blue light, but got blue light detected")
 		}
 	})
 
-	t.Run("fire present", func(t *testing.T) {
+	t.Run("fire present (should be negative)", func(t *testing.T) {
 		img := createTestImage(100, 100, color.Black)
-		// Set pixels matching fire condition: R > 200, G > 100, B < 120, R > G > B
+		// Set pixels matching fire color (which is NOT blue light)
 		fireColor := color.RGBA{R: 240, G: 150, B: 50, A: 255}
 		for i := 0; i < threshold; i++ {
 			img.Set(i, 0, fireColor)
 		}
 		res := AnalyzeFrame(img, threshold)
-		if !res.FireDetected {
-			t.Errorf("expected fire detected, but got false")
-		}
 		if res.BlueLightDetected {
 			t.Errorf("expected no blue light, but got blue light detected")
 		}
@@ -55,15 +49,12 @@ func TestAnalyzeFrame(t *testing.T) {
 			img.Set(i, 0, blueColor)
 		}
 		res := AnalyzeFrame(img, threshold)
-		if res.FireDetected {
-			t.Errorf("expected no fire, but got fire detected")
-		}
 		if !res.BlueLightDetected {
 			t.Errorf("expected blue light detected, but got false")
 		}
 	})
 
-	t.Run("both present", func(t *testing.T) {
+	t.Run("both present (should detect blue light)", func(t *testing.T) {
 		img := createTestImage(100, 100, color.Black)
 		fireColor := color.RGBA{R: 240, G: 150, B: 50, A: 255}
 		blueColor := color.RGBA{R: 50, G: 50, B: 240, A: 255}
@@ -72,9 +63,6 @@ func TestAnalyzeFrame(t *testing.T) {
 			img.Set(i, 1, blueColor)
 		}
 		res := AnalyzeFrame(img, threshold)
-		if !res.FireDetected {
-			t.Errorf("expected fire detected, but got false")
-		}
 		if !res.BlueLightDetected {
 			t.Errorf("expected blue light detected, but got false")
 		}

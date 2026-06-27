@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -38,6 +41,12 @@ func main() {
 		}
 	}
 
+	// Check if debug mode is enabled
+	debugMode := false
+	if os.Getenv("DEBUG_MODE") == "true" {
+		debugMode = true
+	}
+
 	// Setup context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -54,10 +63,10 @@ func main() {
 	// Channel to pass raw frame data from RTSP callback to the analyzer worker
 	frameChan := make(chan FrameData, 1)
 
-	log.Printf("Starting RTSP Frame Processor (Interval: 10s, Threshold: %d pixels)", threshold)
+	log.Printf("Starting RTSP Frame Processor (Interval: 10s, Threshold: %d pixels, Debug: %t)", threshold, debugMode)
 
 	// Start background analyzer worker
-	go analyzerWorker(ctx, frameChan, threshold)
+	go analyzerWorker(ctx, frameChan, threshold, debugMode)
 
 	// Start RTSP client reconnection loop
 	runRTSPClient(ctx, rtspURI, frameChan)
@@ -188,7 +197,7 @@ func connectAndPlay(ctx context.Context, rtspURI string, frameChan chan FrameDat
 	}
 }
 
-func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold int) {
+func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold int, debugMode bool) {
 	ticker := time.NewTicker(defaultInterval)
 	defer ticker.Stop()
 
@@ -218,11 +227,57 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 			}
 
 			res := AnalyzeFrame(img, threshold)
-			if res.FireDetected || res.BlueLightDetected {
-				fmt.Println("positive")
+			isPositive := res.BlueLightDetected
+
+			var resultStr string
+			if isPositive {
+				resultStr = "positive"
+				if debugMode {
+					if err := savePositiveImage(img); err != nil {
+						fmt.Fprintf(os.Stderr, "Error saving positive image: %v\n", err)
+					}
+				}
 			} else {
-				fmt.Println("negative")
+				resultStr = "negative"
+			}
+
+			// Output result with details in debug mode
+			if debugMode {
+				// Show why it is positive or negative, which condition was fulfilled
+				var reason string
+				if res.BlueLightDetected {
+					reason = fmt.Sprintf("blue light condition met: blue light (%d/%d px)", res.BluePixelCount, threshold)
+				} else {
+					reason = fmt.Sprintf("blue light condition not met: blue light (%d/%d px)", res.BluePixelCount, threshold)
+				}
+				fmt.Printf("%s (%s)\n", resultStr, reason)
+			} else {
+				fmt.Println(resultStr)
 			}
 		}
 	}
+}
+
+func savePositiveImage(img image.Image) error {
+	dir := "images"
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	timestamp := time.Now().Format("20060102_150405")
+	filename := filepath.Join(dir, fmt.Sprintf("snapshot_%s.jpg", timestamp))
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create image file: %w", err)
+	}
+	defer f.Close()
+
+	err = jpeg.Encode(f, img, &jpeg.Options{Quality: 90})
+	if err != nil {
+		return fmt.Errorf("failed to encode jpeg: %w", err)
+	}
+
+	log.Printf("Saved positive frame to %s", filename)
+	return nil
 }

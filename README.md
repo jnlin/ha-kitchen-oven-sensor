@@ -5,9 +5,7 @@ A production-ready, cross-platform CLI tool written in Go that ingests an RTSP v
 ## Features
 - **RTSP Stream Ingestion:** Native protocol connection using `gortsplib/v5` with built-in H.264 depacketization.
 - **Subprocess Image Decoding:** Pipes raw H.264 keyframes to an external FFmpeg subprocess for standard decoding to JPEG, keeping the Go binary CGO-free, lightweight, and portable.
-- **Visual Trigger Detection:** Pure-Go color thresholding and pixel cluster verification logic:
-  - **Fire/Flames:** Detects high red/green dominance over blue.
-  - **Blue Light Source:** Detects highly saturated, bright blue lights (such as indicator beacons).
+- **Visual Trigger Detection:** Pure-Go color thresholding and pixel cluster verification logic to check for the presence of a **blue light source** (detects highly saturated, bright blue lights such as indicator beacons).
 - **Graceful Shutdown & Reconnection:** Automatically reconnects with backoff if the stream drops, and shuts down cleanly on OS interrupts (`SIGINT`, `SIGTERM`).
 - **Native FreeBSD & Linux Support:** Fully containerized multi-stage builds compatible with Linux Docker and native FreeBSD Podman.
 
@@ -19,6 +17,7 @@ Configure the application using the following environment variables:
 | :--- | :--- | :--- |
 | `RTSP_URI` | **Required.** The URI of the target RTSP stream (e.g. `rtsp://user:pass@192.168.1.100:554/stream`). | *None* |
 | `DETECTION_THRESHOLD` | Optional. The minimum number of pixels in a frame matching either trigger condition to count as `positive`. | `50` |
+| `DEBUG_MODE` | Optional. When set to `true`, enables verbose logging showing pixel counts for each condition, and saves all positive frames as `images/snapshot_YYYYMMDD_HHMMSS.jpg` under the `images/` directory. | `false` |
 
 ## Usage & Build Commands
 

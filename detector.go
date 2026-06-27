@@ -6,17 +6,14 @@ import (
 
 // DetectionResult holds the results of the frame analysis.
 type DetectionResult struct {
-	FireDetected      bool
 	BlueLightDetected bool
-	FirePixelCount    int
 	BluePixelCount    int
 }
 
-// AnalyzeFrame processes the image to check for fire/flames and blue light source.
+// AnalyzeFrame processes the image to check for a blue light source.
 // It returns a DetectionResult.
 func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
 	bounds := img.Bounds()
-	firePixels := 0
 	bluePixels := 0
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
@@ -28,9 +25,6 @@ func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
 			g8 := g >> 8
 			b8 := b >> 8
 
-			if isFirePixel(r8, g8, b8) {
-				firePixels++
-			}
 			if isBlueLightPixel(r8, g8, b8) {
 				bluePixels++
 			}
@@ -38,17 +32,9 @@ func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
 	}
 
 	return DetectionResult{
-		FireDetected:      firePixels >= threshold,
 		BlueLightDetected: bluePixels >= threshold,
-		FirePixelCount:    firePixels,
 		BluePixelCount:    bluePixels,
 	}
-}
-
-// isFirePixel checks if a pixel color matches standard fire/flame thresholds.
-// Fire is bright, with high red component, and red > green > blue.
-func isFirePixel(r, g, b uint32) bool {
-	return r > 200 && g > 100 && b < 120 && r > g && g > b
 }
 
 // isBlueLightPixel checks if a pixel color matches standard blue light thresholds.
