@@ -271,11 +271,16 @@ func savePositiveImage(img image.Image) error {
 	if err != nil {
 		return fmt.Errorf("failed to create image file: %w", err)
 	}
-	defer f.Close()
 
 	err = jpeg.Encode(f, img, &jpeg.Options{Quality: 90})
 	if err != nil {
+		_ = f.Close()
 		return fmt.Errorf("failed to encode jpeg: %w", err)
+	}
+
+	err = f.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close image file: %w", err)
 	}
 
 	log.Printf("Saved positive frame to %s", filename)

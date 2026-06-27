@@ -1,11 +1,6 @@
 name: Lint and Test
 
 on:
-  push:
-    branches:
-      - '**'
-    tags-ignore:
-      - 'v*'
   pull_request:
     branches:
       - '**'
