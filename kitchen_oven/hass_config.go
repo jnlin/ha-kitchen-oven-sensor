@@ -9,15 +9,18 @@ import (
 
 // AppConfig holds the generic configuration values used across the application.
 type AppConfig struct {
-	RTSPURI            string
-	DetectionThreshold int
-	DebugMode          bool
-	MQTTBroker         string
-	MQTTClientID       string
-	MQTTUser           string
-	MQTTPassword       string
-	MQTTTopicPrefix    string
-	SensorPin          int
+	RTSPURI                 string
+	DayColorThreshold       int
+	NightLuminanceThreshold int
+	NightBlobMinSize        int
+	NightBlobMaxSize        int
+	DebugMode               bool
+	MQTTBroker              string
+	MQTTClientID            string
+	MQTTUser                string
+	MQTTPassword            string
+	MQTTTopicPrefix         string
+	SensorPin               int
 }
 
 // LoadAppConfig resolves the application configuration:
@@ -27,10 +30,13 @@ func LoadAppConfig() (*AppConfig, error) {
 	const hassOptionsPath = "/data/options.json"
 
 	cfg := &AppConfig{
-		DetectionThreshold: 50,
-		SensorPin:          14,
-		MQTTTopicPrefix:    "homeassistant",
-		MQTTClientID:       "kitchen-camera-cli",
+		DayColorThreshold:       50,
+		NightLuminanceThreshold: 180,
+		NightBlobMinSize:        80,
+		NightBlobMaxSize:        400,
+		SensorPin:               14,
+		MQTTTopicPrefix:         "homeassistant",
+		MQTTClientID:            "kitchen-camera-cli",
 	}
 
 	// 1. Home Assistant Mode
@@ -41,16 +47,19 @@ func LoadAppConfig() (*AppConfig, error) {
 		}
 
 		var opts struct {
-			RTSPURI            string `json:"RTSP_URI"`
-			DetectionThreshold int    `json:"DETECTION_THRESHOLD"`
-			DebugMode          bool   `json:"DEBUG_MODE"`
-			MQTTHost           string `json:"mqtt_host"`
-			MQTTPort           int    `json:"mqtt_port"`
-			MQTTUser           string `json:"mqtt_user"`
-			MQTTPass           string `json:"mqtt_pass"`
-			SensorPin          int    `json:"sensor_pin"`
-			MQTTTopicPrefix    string `json:"MQTT_TOPIC_PREFIX"`
-			MQTTClientID       string `json:"MQTT_CLIENT_ID"`
+			RTSPURI                 string `json:"RTSP_URI"`
+			DayColorThreshold       int    `json:"DAY_COLOR_THRESHOLD"`
+			NightLuminanceThreshold int    `json:"NIGHT_LUMINANCE_THRESHOLD"`
+			NightBlobMinSize        int    `json:"NIGHT_BLOB_MIN_SIZE"`
+			NightBlobMaxSize        int    `json:"NIGHT_BLOB_MAX_SIZE"`
+			DebugMode               bool   `json:"DEBUG_MODE"`
+			MQTTHost                string `json:"mqtt_host"`
+			MQTTPort                int    `json:"mqtt_port"`
+			MQTTUser                string `json:"mqtt_user"`
+			MQTTPass                string `json:"mqtt_pass"`
+			SensorPin               int    `json:"sensor_pin"`
+			MQTTTopicPrefix         string `json:"MQTT_TOPIC_PREFIX"`
+			MQTTClientID            string `json:"MQTT_CLIENT_ID"`
 		}
 
 		if err := json.Unmarshal(data, &opts); err != nil {
@@ -58,8 +67,17 @@ func LoadAppConfig() (*AppConfig, error) {
 		}
 
 		cfg.RTSPURI = opts.RTSPURI
-		if opts.DetectionThreshold > 0 {
-			cfg.DetectionThreshold = opts.DetectionThreshold
+		if opts.DayColorThreshold > 0 {
+			cfg.DayColorThreshold = opts.DayColorThreshold
+		}
+		if opts.NightLuminanceThreshold > 0 {
+			cfg.NightLuminanceThreshold = opts.NightLuminanceThreshold
+		}
+		if opts.NightBlobMinSize > 0 {
+			cfg.NightBlobMinSize = opts.NightBlobMinSize
+		}
+		if opts.NightBlobMaxSize > 0 {
+			cfg.NightBlobMaxSize = opts.NightBlobMaxSize
 		}
 		cfg.DebugMode = opts.DebugMode
 		cfg.MQTTUser = opts.MQTTUser
@@ -88,9 +106,32 @@ func LoadAppConfig() (*AppConfig, error) {
 	// 2. Standalone Mode (Fallback to Env Vars)
 	cfg.RTSPURI = os.Getenv("RTSP_URI")
 
-	if threshStr := os.Getenv("DETECTION_THRESHOLD"); threshStr != "" {
-		if val, err := strconv.Atoi(threshStr); err == nil && val > 0 {
-			cfg.DetectionThreshold = val
+	if valStr := os.Getenv("DAY_COLOR_THRESHOLD"); valStr != "" {
+		if val, err := strconv.Atoi(valStr); err == nil && val > 0 {
+			cfg.DayColorThreshold = val
+		}
+	} else if valStr := os.Getenv("DETECTION_THRESHOLD"); valStr != "" {
+		// Fallback for backward compatibility
+		if val, err := strconv.Atoi(valStr); err == nil && val > 0 {
+			cfg.DayColorThreshold = val
+		}
+	}
+
+	if valStr := os.Getenv("NIGHT_LUMINANCE_THRESHOLD"); valStr != "" {
+		if val, err := strconv.Atoi(valStr); err == nil && val > 0 {
+			cfg.NightLuminanceThreshold = val
+		}
+	}
+
+	if valStr := os.Getenv("NIGHT_BLOB_MIN_SIZE"); valStr != "" {
+		if val, err := strconv.Atoi(valStr); err == nil && val > 0 {
+			cfg.NightBlobMinSize = val
+		}
+	}
+
+	if valStr := os.Getenv("NIGHT_BLOB_MAX_SIZE"); valStr != "" {
+		if val, err := strconv.Atoi(valStr); err == nil && val > 0 {
+			cfg.NightBlobMaxSize = val
 		}
 	}
 

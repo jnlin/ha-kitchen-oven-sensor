@@ -61,10 +61,17 @@ func main() {
 	// Channel to pass raw frame data from RTSP callback to the analyzer worker
 	frameChan := make(chan FrameData, 1)
 
-	log.Printf("Starting RTSP Frame Processor (Interval: 10s, Threshold: %d pixels, Debug: %t, Sensor Pin: %d)", cfg.DetectionThreshold, cfg.DebugMode, cfg.SensorPin)
+	analysisCfg := AnalysisConfig{
+		DayColorThreshold:       cfg.DayColorThreshold,
+		NightLuminanceThreshold: cfg.NightLuminanceThreshold,
+		NightBlobMinSize:        cfg.NightBlobMinSize,
+		NightBlobMaxSize:        cfg.NightBlobMaxSize,
+	}
+
+	log.Printf("Starting RTSP Frame Processor (Interval: 10s, DayThreshold: %d, NightLuminanceThreshold: %d, NightBlobMinSize: %d, NightBlobMaxSize: %d, Debug: %t, Sensor Pin: %d)", cfg.DayColorThreshold, cfg.NightLuminanceThreshold, cfg.NightBlobMinSize, cfg.NightBlobMaxSize, cfg.DebugMode, cfg.SensorPin)
 
 	// Start background analyzer worker
-	go analyzerWorker(ctx, frameChan, cfg.DetectionThreshold, cfg.DebugMode, mqttMgr)
+	go analyzerWorker(ctx, frameChan, analysisCfg, cfg.DebugMode, mqttMgr)
 
 	// Start RTSP client reconnection loop
 	runRTSPClient(ctx, cfg.RTSPURI, frameChan)
@@ -195,7 +202,7 @@ func connectAndPlay(ctx context.Context, rtspURI string, frameChan chan FrameDat
 	}
 }
 
-func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold int, debugMode bool, mqttMgr *MQTTManager) {
+func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, analysisCfg AnalysisConfig, debugMode bool, mqttMgr *MQTTManager) {
 	ticker := time.NewTicker(defaultInterval)
 	defer ticker.Stop()
 
@@ -224,7 +231,7 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 				continue
 			}
 
-			res := AnalyzeFrame(img, threshold)
+			res := AnalyzeFrame(img, analysisCfg)
 			isPositive := res.BlueLightDetected
 
 			var resultStr string
@@ -242,16 +249,20 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 
 			// Publish to MQTT if active
 			if mqttMgr != nil {
+				lastDetectionTime := time.Now().Format(time.RFC3339)
 				mqttMgr.PublishState(resultStr)
+				mqttMgr.PublishAttributes(res.CurrentMode, res.AppliedThreshold, lastDetectionTime)
 			}
 
 			// Output detailed result only in debug mode
 			if debugMode {
 				var reason string
 				if res.BlueLightDetected {
-					reason = fmt.Sprintf("blue light condition met: blue light (%d/%d px)", res.BluePixelCount, threshold)
+					reason = fmt.Sprintf("condition met: mode=%s, applied_threshold=%d, matching_pixels=%d, gray_variance=%.2f",
+						res.CurrentMode, res.AppliedThreshold, res.BluePixelCount, res.GrayscaleScore)
 				} else {
-					reason = fmt.Sprintf("blue light condition not met: blue light (%d/%d px)", res.BluePixelCount, threshold)
+					reason = fmt.Sprintf("condition not met: mode=%s, applied_threshold=%d, matching_pixels=%d, gray_variance=%.2f",
+						res.CurrentMode, res.AppliedThreshold, res.BluePixelCount, res.GrayscaleScore)
 				}
 				log.Printf("%s (%s)", resultStr, reason)
 			}
