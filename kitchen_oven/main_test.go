@@ -134,18 +134,11 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 
 func TestLoadAppConfig(t *testing.T) {
 	// Set environment variables to test standalone fallback
-	_ = os.Setenv("RTSP_URI", "rtsp://localhost/test")
-	_ = os.Setenv("DETECTION_THRESHOLD", "100")
-	_ = os.Setenv("DEBUG_MODE", "true")
-	_ = os.Setenv("MQTT_BROKER", "tcp://192.168.1.50:1883")
-	_ = os.Setenv("SENSOR_PIN", "22")
-	defer func() {
-		_ = os.Unsetenv("RTSP_URI")
-		_ = os.Unsetenv("DETECTION_THRESHOLD")
-		_ = os.Unsetenv("DEBUG_MODE")
-		_ = os.Unsetenv("MQTT_BROKER")
-		_ = os.Unsetenv("SENSOR_PIN")
-	}()
+	t.Setenv("RTSP_URI", "rtsp://localhost/test")
+	t.Setenv("DETECTION_THRESHOLD", "100")
+	t.Setenv("DEBUG_MODE", "true")
+	t.Setenv("MQTT_BROKER", "tcp://192.168.1.50:1883")
+	t.Setenv("SENSOR_PIN", "22")
 
 	cfg, err := LoadAppConfig()
 	if err != nil {
