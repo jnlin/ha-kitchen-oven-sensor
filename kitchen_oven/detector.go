@@ -14,28 +14,6 @@ type point struct {
 	X, Y int
 }
 
-type blob struct {
-	minX, maxX int
-	minY, maxY int
-	points     []point
-	maxGray    int
-	avgGray    float64
-}
-
-func (b *blob) area() int { return len(b.points) }
-func (b *blob) width() int { return b.maxX - b.minX + 1 }
-func (b *blob) height() int { return b.maxY - b.minY + 1 }
-func (b *blob) aspectRatio() float64 {
-	w, h := float64(b.width()), float64(b.height())
-	if w > h {
-		return w / h
-	}
-	return h / w
-}
-func (b *blob) fillRatio() float64 {
-	return float64(len(b.points)) / float64(b.width()*b.height())
-}
-
 // AnalyzeFrame processes the image to check for a blue light source.
 // It returns a DetectionResult.
 func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
@@ -56,7 +34,7 @@ func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
 			return gray >= 180
 		}
 
-		var blobs []blob
+		maxMatchingArea := 0
 
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
@@ -69,9 +47,12 @@ func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
 					continue
 				}
 
-				var blobPoints []point
+				// BFS to compute blob properties incrementally
+				area := 0
 				minX, maxX := x, x
 				minY, maxY := y, y
+				var sumGray uint64
+				maxGray := 0
 
 				queue := []point{{X: x, Y: y}}
 				visited[idx] = true
@@ -79,14 +60,23 @@ func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
 				for len(queue) > 0 {
 					curr := queue[0]
 					queue = queue[1:]
-					blobPoints = append(blobPoints, curr)
 
+					area++
 					if curr.X < minX { minX = curr.X }
 					if curr.X > maxX { maxX = curr.X }
 					if curr.Y < minY { minY = curr.Y }
 					if curr.Y > maxY { maxY = curr.Y }
 
-					neighbors := []point{
+					c := img.At(curr.X, curr.Y)
+					r, g, b, _ := c.RGBA()
+					gray := int((r >> 8 + g >> 8 + b >> 8) / 3)
+					sumGray += uint64(gray)
+					if gray > maxGray {
+						maxGray = gray
+					}
+
+					// Neighbors
+					neighbors := [4]point{
 						{X: curr.X + 1, Y: curr.Y},
 						{X: curr.X - 1, Y: curr.Y},
 						{X: curr.X, Y: curr.Y + 1},
@@ -106,47 +96,30 @@ func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
 					}
 				}
 
-				var sum uint64
-				maxG := 0
-				for _, pt := range blobPoints {
-					c := img.At(pt.X, pt.Y)
-					r, g, b, _ := c.RGBA()
-					gray := int((r >> 8 + g >> 8 + b >> 8) / 3)
-					sum += uint64(gray)
-					if gray > maxG {
-						maxG = gray
-					}
+				// Evaluate the blob immediately
+				cy := (minY + maxY) / 2
+
+				// Exclude blobs close to top/bottom borders (timestamps, overlays)
+				if cy < 400 || cy > bounds.Max.Y-150 {
+					continue
 				}
 
-				blobs = append(blobs, blob{
-					minX:    minX,
-					maxX:    maxX,
-					minY:    minY,
-					maxY:    maxY,
-					points:  blobPoints,
-					maxGray: maxG,
-					avgGray: float64(sum) / float64(len(blobPoints)),
-				})
-			}
-		}
+				w := maxX - minX + 1
+				h := maxY - minY + 1
+				var aspect float64
+				if w > h {
+					aspect = float64(w) / float64(h)
+				} else {
+					aspect = float64(h) / float64(w)
+				}
+				fill := float64(area) / float64(w*h)
+				avgG := float64(sumGray) / float64(area)
 
-		maxMatchingArea := 0
-		for _, b := range blobs {
-			cy := (b.minY + b.maxY) / 2
-
-			// Exclude blobs close to top/bottom borders (timestamps, overlays)
-			if cy < 400 || cy > bounds.Max.Y-150 {
-				continue
-			}
-
-			area := b.area()
-			aspect := b.aspectRatio()
-			fill := b.fillRatio()
-
-			// Apply geometric and intensity filters to find the oven light source
-			if area >= 80 && area <= 400 && aspect <= 2.5 && fill >= 0.40 && b.maxGray >= 240 && b.avgGray >= 210 {
-				if area > maxMatchingArea {
-					maxMatchingArea = area
+				// Apply geometric and intensity filters to isolate the oven light
+				if area >= 80 && area <= 400 && aspect <= 2.5 && fill >= 0.40 && maxGray >= 240 && avgG >= 210 {
+					if area > maxMatchingArea {
+						maxMatchingArea = area
+					}
 				}
 			}
 		}
