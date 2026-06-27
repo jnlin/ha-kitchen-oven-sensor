@@ -252,7 +252,7 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 				} else {
 					reason = fmt.Sprintf("blue light condition not met: blue light (%d/%d px)", res.BluePixelCount, threshold)
 				}
-				fmt.Printf("%s (%s)\n", resultStr, reason)
+				log.Printf("%s (%s)", resultStr, reason)
 			}
 		}
 	}
