@@ -9,6 +9,13 @@ A production-ready, cross-platform CLI tool written in Go that ingests an RTSP v
 - **Graceful Shutdown & Reconnection:** Automatically reconnects with backoff if the stream drops, and shuts down cleanly on OS interrupts (`SIGINT`, `SIGTERM`).
 - **Native FreeBSD & Linux Support:** Fully containerized multi-stage builds compatible with Linux Docker and native FreeBSD Podman.
 
+## Night-Vision (IR) Detection
+
+To handle Infrared (IR) night-vision streams where colors are converted to grayscale and the blue light source manifests as a bright grayscale highlight, the visual trigger logic uses an adaptive mode selector:
+1. **Grayscale Detection:** The frame is automatically checked for color saturation by calculating the channel variance ($|R-G| + |R-B| + |G-B|$) over a sampled grid of pixels. If the average variance is $< 10.0$ (on a scale of 0-255), the frame is processed in night-vision mode.
+2. **Daytime (Color) Mode:** Scans the entire frame for bright, highly saturated blue pixels matching $B > 180$, $B > R+80$, and $B > G+80$.
+3. **Nighttime (IR) Mode:** Scans a localized Region of Interest (ROI) centered on the oven indicator light ($X: [1700, 1865]$, $Y: [1165, 1295]$) for bright grayscale highlights ($> 180$ intensity). If the count of matching pixels exceeds the configured detection threshold, the light is classified as active.
+
 ## Setup & Configuration
 
 Configure the application using the following environment variables:
