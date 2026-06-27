@@ -10,9 +10,33 @@ import (
 
 // MQTTManager handles state publication and Home Assistant MQTT discovery registrations.
 type MQTTManager struct {
-	client     mqtt.Client
-	debug      bool
-	stateTopic string
+	client          mqtt.Client
+	debug           bool
+	stateTopic      string
+	attributesTopic string
+}
+
+// BuildDiscoveryPayload builds the HA discovery registration map.
+func BuildDiscoveryPayload(stateTopic, attributesTopic string) map[string]interface{} {
+	return map[string]interface{}{
+		"name":                  "Kitchen Camera Blue Light",
+		"state_topic":           stateTopic,
+		"json_attributes_topic": attributesTopic,
+		"unique_id":             "kitchen_camera_blue_light",
+		"device_class":          "light",
+		"payload_on":            "positive",
+		"payload_off":           "negative",
+		"value_template":        "{{ value }}",
+	}
+}
+
+// BuildAttributesPayload builds the attributes payload map.
+func BuildAttributesPayload(currentMode string, appliedThreshold int, lastDetectionTime string) map[string]interface{} {
+	return map[string]interface{}{
+		"current_mode":        currentMode,
+		"applied_threshold":   appliedThreshold,
+		"last_detection_time": lastDetectionTime,
+	}
 }
 
 // NewMQTTManager initializes a new Paho MQTT client and connects to the specified broker.
@@ -25,6 +49,7 @@ func NewMQTTManager(broker, clientID, user, password, topicPrefix string, debug 
 	}
 
 	stateTopic := fmt.Sprintf("%s/binary_sensor/kitchen_camera/state", topicPrefix)
+	attributesTopic := fmt.Sprintf("%s/binary_sensor/kitchen_camera/attributes", topicPrefix)
 	discoveryTopic := fmt.Sprintf("%s/binary_sensor/kitchen_camera/config", topicPrefix)
 
 	opts := mqtt.NewClientOptions()
@@ -44,15 +69,7 @@ func NewMQTTManager(broker, clientID, user, password, topicPrefix string, debug 
 			log.Println("[DEBUG] Successfully connected to MQTT broker")
 		}
 		// Register Home Assistant discovery config payload
-		discoveryPayload := map[string]interface{}{
-			"name":           "Kitchen Camera Blue Light",
-			"state_topic":    stateTopic,
-			"unique_id":      "kitchen_camera_blue_light",
-			"device_class":   "light",
-			"payload_on":     "positive",
-			"payload_off":    "negative",
-			"value_template": "{{ value }}",
-		}
+		discoveryPayload := BuildDiscoveryPayload(stateTopic, attributesTopic)
 		payloadBytes, err := json.Marshal(discoveryPayload)
 		if err != nil {
 			log.Printf("Error marshaling discovery payload: %v\n", err)
@@ -88,9 +105,10 @@ func NewMQTTManager(broker, clientID, user, password, topicPrefix string, debug 
 	}
 
 	return &MQTTManager{
-		client:     client,
-		debug:      debug,
-		stateTopic: stateTopic,
+		client:          client,
+		debug:           debug,
+		stateTopic:      stateTopic,
+		attributesTopic: attributesTopic,
 	}, nil
 }
 
@@ -108,6 +126,30 @@ func (m *MQTTManager) PublishState(state string) {
 	}
 
 	token := m.client.Publish(m.stateTopic, 1, true, state)
+	token.Wait()
+}
+
+// PublishAttributes sends the serialized attributes JSON to the attributes topic.
+func (m *MQTTManager) PublishAttributes(currentMode string, appliedThreshold int, lastDetectionTime string) {
+	if m.client == nil || !m.client.IsConnected() {
+		if m.debug {
+			log.Printf("[DEBUG] Cannot publish attributes; MQTT client is not connected\n")
+		}
+		return
+	}
+
+	payload := BuildAttributesPayload(currentMode, appliedThreshold, lastDetectionTime)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error marshaling attributes payload: %v\n", err)
+		return
+	}
+
+	if m.debug {
+		log.Printf("[DEBUG] Publishing Attributes Payload to topic %s: %s\n", m.attributesTopic, string(payloadBytes))
+	}
+
+	token := m.client.Publish(m.attributesTopic, 1, true, payloadBytes)
 	token.Wait()
 }
 

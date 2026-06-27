@@ -1,5 +1,5 @@
 name: Kitchen Oven Sensor
-version: '0.0.6'
+version: '0.0.7'
 slug: kitchen_oven
 description: Processes RTSP video streams for oven state and publishes to MQTT.
 arch:
@@ -9,7 +9,10 @@ init: false
 map_addon_data: true
 options:
   RTSP_URI: ""
-  DETECTION_THRESHOLD: 50
+  DAY_COLOR_THRESHOLD: 50
+  NIGHT_LUMINANCE_THRESHOLD: 180
+  NIGHT_BLOB_MIN_SIZE: 80
+  NIGHT_BLOB_MAX_SIZE: 400
   DEBUG_MODE: false
   mqtt_host: "core-mosquitto"
   mqtt_port: 1883
@@ -20,7 +23,10 @@ options:
   MQTT_CLIENT_ID: "kitchen-camera-cli"
 schema:
   RTSP_URI: str
-  DETECTION_THRESHOLD: int
+  DAY_COLOR_THRESHOLD: int
+  NIGHT_LUMINANCE_THRESHOLD: int
+  NIGHT_BLOB_MIN_SIZE: int
+  NIGHT_BLOB_MAX_SIZE: int
   DEBUG_MODE: bool
   mqtt_host: str
   mqtt_port: int

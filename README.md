@@ -33,13 +33,32 @@ Configure the application using the following environment variables:
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `RTSP_URI` | **Required.** The URI of the target RTSP stream (e.g. `rtsp://user:pass@192.168.1.100:554/stream`). | *None* |
-| `DETECTION_THRESHOLD` | Optional. The minimum number of pixels in a frame matching the trigger condition to count as `positive`. | `50` |
-| `DEBUG_MODE` | Optional. When set to `true`, enables verbose logging showing pixel counts, saves positive frames to the `images/` directory, and outputs detailed MQTT status and payload logs. | `false` |
+| `DAY_COLOR_THRESHOLD` | Optional. Daytime color pixel count threshold (replaces `DETECTION_THRESHOLD`). | `50` |
+| `NIGHT_LUMINANCE_THRESHOLD` | Optional. Brightness threshold for night pixel blob detection (0-255). | `180` |
+| `NIGHT_BLOB_MIN_SIZE` | Optional. Minimum area (pixel count) of a valid nighttime indicator light blob. | `80` |
+| `NIGHT_BLOB_MAX_SIZE` | Optional. Maximum area (pixel count) of a valid nighttime indicator light blob. | `400` |
+| `DEBUG_MODE` | Optional. When set to `true`, enables verbose logging, saves positive/negative frames, and outputs chosen profile, variance, and blob sizes. | `false` |
 | `MQTT_BROKER` | Optional. The MQTT broker URI (e.g. `tcp://192.168.1.100:1883`). If omitted, the MQTT module is disabled. | *None* |
 | `MQTT_CLIENT_ID` | Optional. Client identifier for the MQTT connection. | `kitchen-camera-cli` |
 | `MQTT_USER` | Optional. Username for MQTT authentication. | *None* |
 | `MQTT_PASSWORD` | Optional. Password for MQTT authentication. | *None* |
 | `MQTT_TOPIC_PREFIX` | Optional. Base topic for Home Assistant auto-discovery config and state topics. | `homeassistant` |
+
+## Home Assistant Entity Attributes
+
+The Home Assistant binary sensor publishes state metadata to the attributes topic (`homeassistant/binary_sensor/kitchen_camera/attributes`) on every frame analysis loop:
+```json
+{
+  "current_mode": "daytime", 
+  "applied_threshold": 50,
+  "last_detection_time": "2026-06-27T19:12:00Z"
+}
+```
+
+### Viewing Metadata in the UI
+1. Navigate to Home Assistant **Settings** -> **Devices & Services** -> **Entities**.
+2. Find and click on the **Kitchen Camera Blue Light** entity to open its **Info Card**.
+3. The metadata attributes (e.g., `current_mode`, `applied_threshold`, `last_detection_time`) will be listed under the entity details section.
 
 ## Usage & Build Commands
 
