@@ -1,0 +1,28 @@
+name: Kitchen Oven Sensor
+version: '1.0.0'
+slug: kitchen_oven
+description: Processes RTSP video streams for oven state and publishes to MQTT.
+arch:
+  - amd64
+  - aarch64
+init: false
+map_addon_data: true
+options:
+  RTSP_URI: ""
+  DETECTION_THRESHOLD: 50
+  DEBUG_MODE: false
+  MQTT_BROKER: ""
+  MQTT_CLIENT_ID: ""
+  MQTT_USER: ""
+  MQTT_PASSWORD: ""
+  MQTT_TOPIC_PREFIX: ""
+schema:
+  RTSP_URI: str
+  DETECTION_THRESHOLD: int
+  DEBUG_MODE: bool
+  MQTT_BROKER: str?
+  MQTT_CLIENT_ID: str?
+  MQTT_USER: str?
+  MQTT_PASSWORD: str?
+  MQTT_TOPIC_PREFIX: str?
+image: 'ghcr.io/jnlin/ha-kitchen-oven-sensor-{arch}'
