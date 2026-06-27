@@ -45,12 +45,12 @@ func NewMQTTManager(broker, clientID, user, password, topicPrefix string, debug 
 		}
 		// Register Home Assistant discovery config payload
 		discoveryPayload := map[string]interface{}{
-			"name":          "Kitchen Camera Blue Light",
-			"state_topic":   stateTopic,
-			"unique_id":     "kitchen_camera_blue_light",
-			"device_class":  "light",
-			"payload_on":    "positive",
-			"payload_off":   "negative",
+			"name":           "Kitchen Camera Blue Light",
+			"state_topic":    stateTopic,
+			"unique_id":      "kitchen_camera_blue_light",
+			"device_class":   "light",
+			"payload_on":     "positive",
+			"payload_off":    "negative",
 			"value_template": "{{ value }}",
 		}
 		payloadBytes, err := json.Marshal(discoveryPayload)
