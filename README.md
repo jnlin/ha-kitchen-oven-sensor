@@ -46,7 +46,7 @@ Configure the application using the following environment variables:
 
 ## Home Assistant Entity Attributes
 
-The Home Assistant binary sensor publishes state metadata to the attributes topic (`homeassistant/binary_sensor/kitchen_camera/attributes`) on every frame analysis loop:
+The Home Assistant binary sensor publishes state metadata to the attributes topic (`<MQTT_TOPIC_PREFIX>/binary_sensor/kitchen_camera/attributes`, default: `homeassistant/binary_sensor/kitchen_camera/attributes`) on every frame analysis loop:
 ```json
 {
   "current_mode": "daytime", 

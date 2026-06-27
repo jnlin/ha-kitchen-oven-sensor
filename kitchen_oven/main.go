@@ -68,7 +68,7 @@ func main() {
 		NightBlobMaxSize:        cfg.NightBlobMaxSize,
 	}
 
-	log.Printf("Starting RTSP Frame Processor (Interval: 10s, DayThreshold: %d, NightThreshold: %d, Debug: %t, Sensor Pin: %d)", cfg.DayColorThreshold, cfg.NightBlobMinSize, cfg.DebugMode, cfg.SensorPin)
+	log.Printf("Starting RTSP Frame Processor (Interval: 10s, DayThreshold: %d, NightLuminanceThreshold: %d, NightBlobMinSize: %d, NightBlobMaxSize: %d, Debug: %t, Sensor Pin: %d)", cfg.DayColorThreshold, cfg.NightLuminanceThreshold, cfg.NightBlobMinSize, cfg.NightBlobMaxSize, cfg.DebugMode, cfg.SensorPin)
 
 	// Start background analyzer worker
 	go analyzerWorker(ctx, frameChan, analysisCfg, cfg.DebugMode, mqttMgr)

@@ -151,6 +151,9 @@ func (m *MQTTManager) PublishAttributes(currentMode string, appliedThreshold int
 
 	token := m.client.Publish(m.attributesTopic, 1, true, payloadBytes)
 	token.Wait()
+	if pubErr := token.Error(); pubErr != nil {
+		log.Printf("Error publishing attributes payload: %v\n", pubErr)
+	}
 }
 
 // Close gracefully disconnects the MQTT client.

@@ -242,7 +242,7 @@ func TestLoadAppConfig(t *testing.T) {
 	t.Run("backward compatibility with DETECTION_THRESHOLD", func(t *testing.T) {
 		t.Setenv("DETECTION_THRESHOLD", "75")
 		// clear DAY_COLOR_THRESHOLD to test fallback
-		os.Unsetenv("DAY_COLOR_THRESHOLD")
+		_ = os.Unsetenv("DAY_COLOR_THRESHOLD")
 		
 		cfg, err := LoadAppConfig()
 		if err != nil {

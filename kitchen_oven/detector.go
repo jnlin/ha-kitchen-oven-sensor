@@ -189,10 +189,8 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 				queue := []point{{X: x, Y: y}}
 				visited[idx] = true
 
-				for len(queue) > 0 {
-					curr := queue[0]
-					queue = queue[1:]
-
+				for head := 0; head < len(queue); head++ {
+					curr := queue[head]
 					area++
 					if curr.X < minX { minX = curr.X }
 					if curr.X > maxX { maxX = curr.X }
@@ -298,10 +296,6 @@ func getGrayscaleScore(img image.Image) float64 {
 	return float64(totalDiff) / float64(samples)
 }
 
-// isGrayscale detects if the frame is in night-vision (IR/grayscale) mode by checking the variance score.
-func isGrayscale(img image.Image) bool {
-	return getGrayscaleScore(img) < 10.0
-}
 
 // absDiff returns the absolute difference between two uint32 numbers.
 func absDiff(a, b uint32) uint32 {
