@@ -16,8 +16,13 @@ Configure the application using the following environment variables:
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `RTSP_URI` | **Required.** The URI of the target RTSP stream (e.g. `rtsp://user:pass@192.168.1.100:554/stream`). | *None* |
-| `DETECTION_THRESHOLD` | Optional. The minimum number of pixels in a frame matching either trigger condition to count as `positive`. | `50` |
-| `DEBUG_MODE` | Optional. When set to `true`, enables verbose logging showing pixel counts for each condition, and saves all positive frames as `images/snapshot_YYYYMMDD_HHMMSS.jpg` under the `images/` directory. | `false` |
+| `DETECTION_THRESHOLD` | Optional. The minimum number of pixels in a frame matching the trigger condition to count as `positive`. | `50` |
+| `DEBUG_MODE` | Optional. When set to `true`, enables verbose logging showing pixel counts, saves positive frames to the `images/` directory, and outputs detailed MQTT status and payload logs. | `false` |
+| `MQTT_BROKER` | Optional. The MQTT broker URI (e.g. `tcp://192.168.1.100:1883`). If omitted, the MQTT module is disabled. | *None* |
+| `MQTT_CLIENT_ID` | Optional. Client identifier for the MQTT connection. | `kitchen-camera-cli` |
+| `MQTT_USER` | Optional. Username for MQTT authentication. | *None* |
+| `MQTT_PASSWORD` | Optional. Password for MQTT authentication. | *None* |
+| `MQTT_TOPIC_PREFIX` | Optional. Base topic for Home Assistant auto-discovery config and state topics. | `homeassistant` |
 
 ## Usage & Build Commands
 

@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	github.com/bluenviron/gortsplib/v5 v5.6.0
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/pion/rtp v1.10.2
 )
 
@@ -18,5 +19,6 @@ require (
 	github.com/pion/srtp/v3 v3.0.11 // indirect
 	github.com/pion/transport/v4 v4.0.2 // indirect
 	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 )

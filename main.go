@@ -41,7 +41,7 @@ func main() {
 		}
 	}
 
-	// Check if debug mode is enabled
+	// Check if debug mode is enabled (ONLY check DEBUG_MODE as per user instructions)
 	debugMode := false
 	if os.Getenv("DEBUG_MODE") == "true" {
 		debugMode = true
@@ -60,13 +60,30 @@ func main() {
 		cancel()
 	}()
 
+	// Conditional MQTT Setup
+	var mqttMgr *MQTTManager
+	broker := os.Getenv("MQTT_BROKER")
+	if broker != "" {
+		clientID := os.Getenv("MQTT_CLIENT_ID")
+		user := os.Getenv("MQTT_USER")
+		password := os.Getenv("MQTT_PASSWORD")
+		topicPrefix := os.Getenv("MQTT_TOPIC_PREFIX")
+
+		var err error
+		mqttMgr, err = NewMQTTManager(broker, clientID, user, password, topicPrefix, debugMode)
+		if err != nil {
+			log.Fatalf("Failed to initialize MQTT client: %v", err)
+		}
+		defer mqttMgr.Close()
+	}
+
 	// Channel to pass raw frame data from RTSP callback to the analyzer worker
 	frameChan := make(chan FrameData, 1)
 
 	log.Printf("Starting RTSP Frame Processor (Interval: 10s, Threshold: %d pixels, Debug: %t)", threshold, debugMode)
 
 	// Start background analyzer worker
-	go analyzerWorker(ctx, frameChan, threshold, debugMode)
+	go analyzerWorker(ctx, frameChan, threshold, debugMode, mqttMgr)
 
 	// Start RTSP client reconnection loop
 	runRTSPClient(ctx, rtspURI, frameChan)
@@ -197,7 +214,7 @@ func connectAndPlay(ctx context.Context, rtspURI string, frameChan chan FrameDat
 	}
 }
 
-func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold int, debugMode bool) {
+func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold int, debugMode bool, mqttMgr *MQTTManager) {
 	ticker := time.NewTicker(defaultInterval)
 	defer ticker.Stop()
 
@@ -239,6 +256,11 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 				}
 			} else {
 				resultStr = "negative"
+			}
+
+			// Publish to MQTT if active
+			if mqttMgr != nil {
+				mqttMgr.PublishState(resultStr)
 			}
 
 			// Output result with details in debug mode
