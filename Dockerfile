@@ -9,7 +9,7 @@ ENV DETECTION_THRESHOLD="50"
 ENTRYPOINT ["/usr/local/bin/kitchen-camera"]
 
 # Stage 2b: FreeBSD target image
-FROM freebsd:latest AS target-freebsd
+FROM freebsd/freebsd-runtime:latest AS target-freebsd
 RUN pkg update && pkg install -y ffmpeg
 COPY kitchen-camera-bin /usr/local/bin/kitchen-camera
 ENV RTSP_URI=""
