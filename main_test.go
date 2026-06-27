@@ -3,6 +3,9 @@ package main
 import (
 	"image"
 	"image/color"
+	_ "image/jpeg"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -43,7 +46,7 @@ func TestAnalyzeFrame(t *testing.T) {
 
 	t.Run("blue light present", func(t *testing.T) {
 		img := createTestImage(100, 100, color.Black)
-		// Set pixels matching blue light condition: B > 150, B > R+60, B > G+60
+		// Set pixels matching blue light condition: B > 180, B > R+80, B > G+80
 		blueColor := color.RGBA{R: 50, G: 50, B: 240, A: 255}
 		for i := 0; i < threshold; i++ {
 			img.Set(i, 0, blueColor)
@@ -65,6 +68,66 @@ func TestAnalyzeFrame(t *testing.T) {
 		res := AnalyzeFrame(img, threshold)
 		if !res.BlueLightDetected {
 			t.Errorf("expected blue light detected, but got false")
+		}
+	})
+}
+
+func TestCameraSnapshotsIntegration(t *testing.T) {
+	threshold := 50 // default threshold
+
+	t.Run("negatives", func(t *testing.T) {
+		files, err := filepath.Glob("images/negative/*.jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(files) == 0 {
+			t.Log("Warning: No negative snapshots found to test")
+			return
+		}
+		for _, file := range files {
+			f, err := os.Open(file)
+			if err != nil {
+				t.Errorf("failed to open %s: %v", file, err)
+				continue
+			}
+			img, _, err := image.Decode(f)
+			f.Close()
+			if err != nil {
+				t.Errorf("failed to decode %s: %v", file, err)
+				continue
+			}
+			res := AnalyzeFrame(img, threshold)
+			if res.BlueLightDetected {
+				t.Errorf("expected file %s to be negative, but got positive (blue light: %d/%d px)", file, res.BluePixelCount, threshold)
+			}
+		}
+	})
+
+	t.Run("positives", func(t *testing.T) {
+		files, err := filepath.Glob("images/bluelight/*.jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(files) == 0 {
+			t.Log("Warning: No blue light snapshots found to test")
+			return
+		}
+		for _, file := range files {
+			f, err := os.Open(file)
+			if err != nil {
+				t.Errorf("failed to open %s: %v", file, err)
+				continue
+			}
+			img, _, err := image.Decode(f)
+			f.Close()
+			if err != nil {
+				t.Errorf("failed to decode %s: %v", file, err)
+				continue
+			}
+			res := AnalyzeFrame(img, threshold)
+			if !res.BlueLightDetected {
+				t.Errorf("expected file %s to be positive, but got negative (blue light: %d/%d px)", file, res.BluePixelCount, threshold)
+			}
 		}
 	})
 }

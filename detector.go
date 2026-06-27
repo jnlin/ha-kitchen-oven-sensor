@@ -40,5 +40,5 @@ func AnalyzeFrame(img image.Image, threshold int) DetectionResult {
 // isBlueLightPixel checks if a pixel color matches standard blue light thresholds.
 // Blue is high and significantly higher than red and green.
 func isBlueLightPixel(r, g, b uint32) bool {
-	return b > 150 && b > r+60 && b > g+60
+	return b > 180 && b > r+80 && b > g+80
 }
