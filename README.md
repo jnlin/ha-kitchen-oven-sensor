@@ -26,7 +26,7 @@ Configure the application using the following environment variables:
 
 ## Usage & Build Commands
 
-Build automation is managed using `GNU Make`:
+Build automation is managed using `GNU Make`. You can override the Go compiler binary by passing the `GO` variable (e.g. `make GO=go1.26 build` or `GO=go1.26 make test`).
 
 ### 1. Run Automated Unit Tests
 Verify trigger classification algorithms locally using in-memory mock frames:
