@@ -91,7 +91,7 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 				continue
 			}
 			img, _, err := image.Decode(f)
-			f.Close()
+			_ = f.Close()
 			if err != nil {
 				t.Errorf("failed to decode %s: %v", file, err)
 				continue
@@ -119,7 +119,7 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 				continue
 			}
 			img, _, err := image.Decode(f)
-			f.Close()
+			_ = f.Close()
 			if err != nil {
 				t.Errorf("failed to decode %s: %v", file, err)
 				continue
@@ -134,18 +134,11 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 
 func TestLoadAppConfig(t *testing.T) {
 	// Set environment variables to test standalone fallback
-	os.Setenv("RTSP_URI", "rtsp://localhost/test")
-	os.Setenv("DETECTION_THRESHOLD", "100")
-	os.Setenv("DEBUG_MODE", "true")
-	os.Setenv("MQTT_BROKER", "tcp://192.168.1.50:1883")
-	os.Setenv("SENSOR_PIN", "22")
-	defer func() {
-		os.Unsetenv("RTSP_URI")
-		os.Unsetenv("DETECTION_THRESHOLD")
-		os.Unsetenv("DEBUG_MODE")
-		os.Unsetenv("MQTT_BROKER")
-		os.Unsetenv("SENSOR_PIN")
-	}()
+	t.Setenv("RTSP_URI", "rtsp://localhost/test")
+	t.Setenv("DETECTION_THRESHOLD", "100")
+	t.Setenv("DEBUG_MODE", "true")
+	t.Setenv("MQTT_BROKER", "tcp://192.168.1.50:1883")
+	t.Setenv("SENSOR_PIN", "22")
 
 	cfg, err := LoadAppConfig()
 	if err != nil {

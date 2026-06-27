@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 )
@@ -36,7 +35,7 @@ func LoadAppConfig() (*AppConfig, error) {
 
 	// 1. Home Assistant Mode
 	if _, err := os.Stat(hassOptionsPath); err == nil {
-		data, err := ioutil.ReadFile(hassOptionsPath)
+		data, err := os.ReadFile(hassOptionsPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read HA options file: %w", err)
 		}

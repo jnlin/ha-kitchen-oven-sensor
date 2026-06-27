@@ -244,9 +244,8 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 				mqttMgr.PublishState(resultStr)
 			}
 
-			// Output result with details in debug mode
+			// Output detailed result only in debug mode
 			if debugMode {
-				// Show why it is positive or negative, which condition was fulfilled
 				var reason string
 				if res.BlueLightDetected {
 					reason = fmt.Sprintf("blue light condition met: blue light (%d/%d px)", res.BluePixelCount, threshold)
@@ -254,8 +253,6 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 					reason = fmt.Sprintf("blue light condition not met: blue light (%d/%d px)", res.BluePixelCount, threshold)
 				}
 				fmt.Printf("%s (%s)\n", resultStr, reason)
-			} else {
-				fmt.Println(resultStr)
 			}
 		}
 	}
@@ -274,11 +271,16 @@ func savePositiveImage(img image.Image) error {
 	if err != nil {
 		return fmt.Errorf("failed to create image file: %w", err)
 	}
-	defer f.Close()
 
 	err = jpeg.Encode(f, img, &jpeg.Options{Quality: 90})
 	if err != nil {
+		_ = f.Close()
 		return fmt.Errorf("failed to encode jpeg: %w", err)
+	}
+
+	err = f.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close image file: %w", err)
 	}
 
 	log.Printf("Saved positive frame to %s", filename)
