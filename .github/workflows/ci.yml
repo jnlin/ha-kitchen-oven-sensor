@@ -40,3 +40,22 @@ jobs:
       - name: Run Tests
         working-directory: kitchen_oven
         run: go test -v ./...
+
+  vulncheck:
+    name: Run Go Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: kitchen_oven/go.sum
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          work-dir: kitchen_oven
+
