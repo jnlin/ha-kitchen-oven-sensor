@@ -131,3 +131,40 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 		}
 	})
 }
+
+func TestLoadAppConfig(t *testing.T) {
+	// Set environment variables to test standalone fallback
+	os.Setenv("RTSP_URI", "rtsp://localhost/test")
+	os.Setenv("DETECTION_THRESHOLD", "100")
+	os.Setenv("DEBUG_MODE", "true")
+	os.Setenv("MQTT_BROKER", "tcp://192.168.1.50:1883")
+	os.Setenv("SENSOR_PIN", "22")
+	defer func() {
+		os.Unsetenv("RTSP_URI")
+		os.Unsetenv("DETECTION_THRESHOLD")
+		os.Unsetenv("DEBUG_MODE")
+		os.Unsetenv("MQTT_BROKER")
+		os.Unsetenv("SENSOR_PIN")
+	}()
+
+	cfg, err := LoadAppConfig()
+	if err != nil {
+		t.Fatalf("failed to load app config: %v", err)
+	}
+
+	if cfg.RTSPURI != "rtsp://localhost/test" {
+		t.Errorf("expected RTSPURI to be rtsp://localhost/test, got %s", cfg.RTSPURI)
+	}
+	if cfg.DetectionThreshold != 100 {
+		t.Errorf("expected DetectionThreshold to be 100, got %d", cfg.DetectionThreshold)
+	}
+	if !cfg.DebugMode {
+		t.Errorf("expected DebugMode to be true")
+	}
+	if cfg.MQTTBroker != "tcp://192.168.1.50:1883" {
+		t.Errorf("expected MQTTBroker to be tcp://192.168.1.50:1883, got %s", cfg.MQTTBroker)
+	}
+	if cfg.SensorPin != 22 {
+		t.Errorf("expected SensorPin to be 22, got %d", cfg.SensorPin)
+	}
+}

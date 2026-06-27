@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -26,25 +25,14 @@ const (
 )
 
 func main() {
-	// Retrieve RTSP_URI env var
-	rtspURI := os.Getenv("RTSP_URI")
-	if rtspURI == "" {
-		log.Println("Error: RTSP_URI environment variable is not set")
+	cfg, err := LoadAppConfig()
+	if err != nil {
+		log.Fatalf("Error loading configuration: %v", err)
+	}
+
+	if cfg.RTSPURI == "" {
+		log.Println("Error: RTSP_URI is not set")
 		os.Exit(1)
-	}
-
-	// Retrieve pixel detection threshold from env var if set
-	threshold := defaultThreshold
-	if threshStr := os.Getenv("DETECTION_THRESHOLD"); threshStr != "" {
-		if val, err := strconv.Atoi(threshStr); err == nil && val > 0 {
-			threshold = val
-		}
-	}
-
-	// Check if debug mode is enabled (ONLY check DEBUG_MODE as per user instructions)
-	debugMode := false
-	if os.Getenv("DEBUG_MODE") == "true" {
-		debugMode = true
 	}
 
 	// Setup context with cancellation for graceful shutdown
@@ -62,15 +50,8 @@ func main() {
 
 	// Conditional MQTT Setup
 	var mqttMgr *MQTTManager
-	broker := os.Getenv("MQTT_BROKER")
-	if broker != "" {
-		clientID := os.Getenv("MQTT_CLIENT_ID")
-		user := os.Getenv("MQTT_USER")
-		password := os.Getenv("MQTT_PASSWORD")
-		topicPrefix := os.Getenv("MQTT_TOPIC_PREFIX")
-
-		var err error
-		mqttMgr, err = NewMQTTManager(broker, clientID, user, password, topicPrefix, debugMode)
+	if cfg.MQTTBroker != "" {
+		mqttMgr, err = NewMQTTManager(cfg.MQTTBroker, cfg.MQTTClientID, cfg.MQTTUser, cfg.MQTTPassword, cfg.MQTTTopicPrefix, cfg.DebugMode)
 		if err != nil {
 			log.Fatalf("Failed to initialize MQTT client: %v", err)
 		}
@@ -80,13 +61,13 @@ func main() {
 	// Channel to pass raw frame data from RTSP callback to the analyzer worker
 	frameChan := make(chan FrameData, 1)
 
-	log.Printf("Starting RTSP Frame Processor (Interval: 10s, Threshold: %d pixels, Debug: %t)", threshold, debugMode)
+	log.Printf("Starting RTSP Frame Processor (Interval: 10s, Threshold: %d pixels, Debug: %t, Sensor Pin: %d)", cfg.DetectionThreshold, cfg.DebugMode, cfg.SensorPin)
 
 	// Start background analyzer worker
-	go analyzerWorker(ctx, frameChan, threshold, debugMode, mqttMgr)
+	go analyzerWorker(ctx, frameChan, cfg.DetectionThreshold, cfg.DebugMode, mqttMgr)
 
 	// Start RTSP client reconnection loop
-	runRTSPClient(ctx, rtspURI, frameChan)
+	runRTSPClient(ctx, cfg.RTSPURI, frameChan)
 }
 
 func runRTSPClient(ctx context.Context, rtspURI string, frameChan chan FrameData) {

@@ -11,18 +11,22 @@ options:
   RTSP_URI: ""
   DETECTION_THRESHOLD: 50
   DEBUG_MODE: false
-  MQTT_BROKER: ""
-  MQTT_CLIENT_ID: ""
-  MQTT_USER: ""
-  MQTT_PASSWORD: ""
-  MQTT_TOPIC_PREFIX: ""
+  mqtt_host: "core-mosquitto"
+  mqtt_port: 1883
+  mqtt_user: ""
+  mqtt_pass: ""
+  sensor_pin: 14
+  MQTT_TOPIC_PREFIX: "homeassistant"
+  MQTT_CLIENT_ID: "kitchen-camera-cli"
 schema:
   RTSP_URI: str
   DETECTION_THRESHOLD: int
   DEBUG_MODE: bool
-  MQTT_BROKER: str?
-  MQTT_CLIENT_ID: str?
-  MQTT_USER: str?
-  MQTT_PASSWORD: str?
+  mqtt_host: str
+  mqtt_port: int
+  mqtt_user: str?
+  mqtt_pass: password?
+  sensor_pin: int
   MQTT_TOPIC_PREFIX: str?
+  MQTT_CLIENT_ID: str?
 image: 'ghcr.io/jnlin/ha-kitchen-oven-sensor-{arch}'
