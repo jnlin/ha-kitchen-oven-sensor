@@ -230,13 +230,14 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 			var resultStr string
 			if isPositive {
 				resultStr = "positive"
-				if debugMode {
-					if err := savePositiveImage(img); err != nil {
-						fmt.Fprintf(os.Stderr, "Error saving positive image: %v\n", err)
-					}
-				}
 			} else {
 				resultStr = "negative"
+			}
+
+			if debugMode {
+				if err := saveSnapshotImage(img, resultStr); err != nil {
+					fmt.Fprintf(os.Stderr, "Error saving snapshot image: %v\n", err)
+				}
 			}
 
 			// Publish to MQTT if active
@@ -258,14 +259,14 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, threshold i
 	}
 }
 
-func savePositiveImage(img image.Image) error {
+func saveSnapshotImage(img image.Image, status string) error {
 	dir := "images"
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
 	timestamp := time.Now().Format("20060102_150405")
-	filename := filepath.Join(dir, fmt.Sprintf("snapshot_%s.jpg", timestamp))
+	filename := filepath.Join(dir, fmt.Sprintf("snapshot_%s_%s.jpg", status, timestamp))
 
 	f, err := os.Create(filename)
 	if err != nil {
@@ -283,6 +284,6 @@ func savePositiveImage(img image.Image) error {
 		return fmt.Errorf("failed to close image file: %w", err)
 	}
 
-	log.Printf("Saved positive frame to %s", filename)
+	log.Printf("Saved %s frame to %s", status, filename)
 	return nil
 }
