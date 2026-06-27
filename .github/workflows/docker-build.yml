@@ -15,14 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [amd64, aarch64]
+        arch: [amd64, aarch64, freebsd]
         include:
           - arch: amd64
             platform: linux/amd64
             target_arch: amd64
+            target_os: linux
           - arch: aarch64
             platform: linux/arm64
             target_arch: arm64
+            target_os: linux
+          - arch: freebsd
+            platform: freebsd/amd64
+            target_arch: amd64
+            target_os: freebsd
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -61,6 +67,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             TARGETARCH=${{ matrix.target_arch }}
-            TARGETOS=linux
+            TARGETOS=${{ matrix.target_os }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
