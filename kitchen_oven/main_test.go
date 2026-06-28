@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"image"
 	"image/color"
 	_ "image/jpeg"
@@ -324,24 +325,47 @@ func TestMQTTPayloads(t *testing.T) {
 		t.Errorf("expected payload_off to be 'negative', got %v", discPayload["payload_off"])
 	}
 
-	// 2. Verify Attributes Payload
-	currentMode := "nighttime"
-	nightModeEnabled := false
-	consecutiveStateCount := 2
-	lastDetectionTime := "2026-06-28T10:00:13Z"
-	attrPayload := BuildAttributesPayload(currentMode, nightModeEnabled, consecutiveStateCount, lastDetectionTime)
+	// 2. Verify Attributes Struct Marshaling
+	attrs := AttributesPayload{
+		CurrentMode:           "nighttime",
+		NightModeEnabled:      false,
+		ConsecutiveStateCount: 2,
+		LastDetectionTime:     "2026-06-28T10:00:13Z",
+		MatchingPixels:        142,
+		AppliedThreshold:      80,
+		GrayscaleScore:        5.2,
+	}
 
-	if attrPayload["current_mode"] != currentMode {
-		t.Errorf("expected current_mode to be %s, got %v", currentMode, attrPayload["current_mode"])
+	bytes, err := json.Marshal(attrs)
+	if err != nil {
+		t.Fatalf("failed to marshal attributes payload: %v", err)
 	}
-	if attrPayload["night_mode_enabled"] != nightModeEnabled {
-		t.Errorf("expected night_mode_enabled to be %t, got %v", nightModeEnabled, attrPayload["night_mode_enabled"])
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(bytes, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal attributes payload: %v", err)
 	}
-	if attrPayload["consecutive_state_count"] != consecutiveStateCount {
-		t.Errorf("expected consecutive_state_count to be %d, got %v", consecutiveStateCount, attrPayload["consecutive_state_count"])
+
+	if parsed["current_mode"] != attrs.CurrentMode {
+		t.Errorf("expected current_mode to be %s, got %v", attrs.CurrentMode, parsed["current_mode"])
 	}
-	if attrPayload["last_detection_time"] != lastDetectionTime {
-		t.Errorf("expected last_detection_time to be %s, got %v", lastDetectionTime, attrPayload["last_detection_time"])
+	if parsed["night_mode_enabled"] != attrs.NightModeEnabled {
+		t.Errorf("expected night_mode_enabled to be %t, got %v", attrs.NightModeEnabled, parsed["night_mode_enabled"])
+	}
+	if parsed["consecutive_state_count"] != float64(attrs.ConsecutiveStateCount) {
+		t.Errorf("expected consecutive_state_count to be %d, got %v", attrs.ConsecutiveStateCount, parsed["consecutive_state_count"])
+	}
+	if parsed["last_detection_time"] != attrs.LastDetectionTime {
+		t.Errorf("expected last_detection_time to be %s, got %v", attrs.LastDetectionTime, parsed["last_detection_time"])
+	}
+	if parsed["matching_pixels"] != float64(attrs.MatchingPixels) {
+		t.Errorf("expected matching_pixels to be %d, got %v", attrs.MatchingPixels, parsed["matching_pixels"])
+	}
+	if parsed["applied_threshold"] != float64(attrs.AppliedThreshold) {
+		t.Errorf("expected applied_threshold to be %d, got %v", attrs.AppliedThreshold, parsed["applied_threshold"])
+	}
+	if parsed["gray_variance"] != attrs.GrayscaleScore {
+		t.Errorf("expected gray_variance to be %f, got %v", attrs.GrayscaleScore, parsed["gray_variance"])
 	}
 }
 

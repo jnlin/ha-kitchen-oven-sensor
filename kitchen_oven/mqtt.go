@@ -16,6 +16,17 @@ type MQTTManager struct {
 	attributesTopic string
 }
 
+// AttributesPayload wraps all the frame operational metadata sent to Home Assistant.
+type AttributesPayload struct {
+	CurrentMode           string  `json:"current_mode"`
+	NightModeEnabled      bool    `json:"night_mode_enabled"`
+	ConsecutiveStateCount int     `json:"consecutive_state_count"`
+	LastDetectionTime     string  `json:"last_detection_time"`
+	MatchingPixels        int     `json:"matching_pixels"`
+	AppliedThreshold      int     `json:"applied_threshold"`
+	GrayscaleScore        float64 `json:"gray_variance"`
+}
+
 // BuildDiscoveryPayload builds the HA discovery registration map.
 func BuildDiscoveryPayload(stateTopic, attributesTopic string) map[string]interface{} {
 	return map[string]interface{}{
@@ -27,16 +38,6 @@ func BuildDiscoveryPayload(stateTopic, attributesTopic string) map[string]interf
 		"payload_on":            "positive",
 		"payload_off":           "negative",
 		"value_template":        "{{ value }}",
-	}
-}
-
-// BuildAttributesPayload builds the attributes payload map.
-func BuildAttributesPayload(currentMode string, nightModeEnabled bool, consecutiveStateCount int, lastDetectionTime string) map[string]interface{} {
-	return map[string]interface{}{
-		"current_mode":            currentMode,
-		"night_mode_enabled":      nightModeEnabled,
-		"consecutive_state_count": consecutiveStateCount,
-		"last_detection_time":     lastDetectionTime,
 	}
 }
 
@@ -137,7 +138,7 @@ func (m *MQTTManager) PublishState(state string) {
 }
 
 // PublishAttributes sends the serialized attributes JSON to the attributes topic.
-func (m *MQTTManager) PublishAttributes(currentMode string, nightModeEnabled bool, consecutiveStateCount int, lastDetectionTime string) {
+func (m *MQTTManager) PublishAttributes(attrs AttributesPayload) {
 	if m.client == nil || !m.client.IsConnected() {
 		if m.debug {
 			log.Printf("[DEBUG] Cannot publish attributes; MQTT client is not connected\n")
@@ -145,8 +146,7 @@ func (m *MQTTManager) PublishAttributes(currentMode string, nightModeEnabled boo
 		return
 	}
 
-	payload := BuildAttributesPayload(currentMode, nightModeEnabled, consecutiveStateCount, lastDetectionTime)
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := json.Marshal(attrs)
 	if err != nil {
 		log.Printf("Error marshaling attributes payload: %v\n", err)
 		return

@@ -1,5 +1,5 @@
 name: Kitchen Oven Sensor
-version: '0.0.8'
+version: '0.0.9'
 slug: kitchen_oven
 description: Processes RTSP video streams for oven state and publishes to MQTT.
 arch:
