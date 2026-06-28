@@ -37,12 +37,19 @@ Configure the application using the following environment variables:
 | `NIGHT_LUMINANCE_THRESHOLD` | Optional. Brightness threshold for night pixel blob detection (0-255). | `180` |
 | `NIGHT_BLOB_MIN_SIZE` | Optional. Minimum area (pixel count) of a valid nighttime indicator light blob. | `80` |
 | `NIGHT_BLOB_MAX_SIZE` | Optional. Maximum area (pixel count) of a valid nighttime indicator light blob. | `400` |
-| `DEBUG_MODE` | Optional. When set to `true`, enables verbose logging, saves positive/negative frames, and outputs chosen profile, variance, and blob sizes. | `false` |
+| `ENABLE_NIGHT_MODE` | Optional. Toggle to enable/disable nighttime IR detection mode. If `false`, nighttime IR frames bypass detection and immediately return a `negative` result. | `true` |
+| `DEBUG_MODE` | Optional. When set to `true`, enables verbose logging, saves positive/negative frames, outputs chosen profile, variance, blob sizes, and state transition counts. | `false` |
 | `MQTT_BROKER` | Optional. The MQTT broker URI (e.g. `tcp://192.168.1.100:1883`). If omitted, the MQTT module is disabled. | *None* |
 | `MQTT_CLIENT_ID` | Optional. Client identifier for the MQTT connection. | `kitchen-camera-cli` |
 | `MQTT_USER` | Optional. Username for MQTT authentication. | *None* |
 | `MQTT_PASSWORD` | Optional. Password for MQTT authentication. | *None* |
 | `MQTT_TOPIC_PREFIX` | Optional. Base topic for Home Assistant auto-discovery config and state topics. | `homeassistant` |
+
+## State Transition Stabilization (Debouncing)
+
+To prevent flapping and minimize false positives, the detector utilizes a state-stabilization algorithm before publishing state changes to MQTT:
+* A state transition (e.g., from `negative` to `positive` or vice-versa) is only finalized and published when the new raw state is observed consecutively for **3 frames** (approximately 30 seconds at the default 10-second polling interval).
+* Flapping or transient states that do not persist for 3 consecutive frames are filtered out and will not affect the official state.
 
 ## Home Assistant Entity Attributes
 
@@ -50,8 +57,9 @@ The Home Assistant binary sensor publishes state metadata to the attributes topi
 ```json
 {
   "current_mode": "daytime", 
-  "applied_threshold": 50,
-  "last_detection_time": "2026-06-27T19:12:00Z"
+  "night_mode_enabled": true,
+  "consecutive_state_count": 0,
+  "last_detection_time": "2026-06-28T10:00:13Z"
 }
 ```
 

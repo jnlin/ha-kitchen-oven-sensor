@@ -19,6 +19,7 @@ type AnalysisConfig struct {
 	NightLuminanceThreshold int
 	NightBlobMinSize        int
 	NightBlobMaxSize        int
+	EnableNightMode         bool
 }
 
 type point struct {
@@ -40,6 +41,17 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 	if isGrayscaleMode {
 		currentMode = "nighttime"
 		appliedThreshold = cfg.NightBlobMinSize
+
+		if !cfg.EnableNightMode {
+			// Skip detection and immediately return a negative result, bypassing nighttime BFS
+			return DetectionResult{
+				BlueLightDetected: false,
+				BluePixelCount:    0,
+				CurrentMode:       currentMode,
+				AppliedThreshold:  appliedThreshold,
+				GrayscaleScore:    grayScore,
+			}
+		}
 
 		// Night-vision (IR/grayscale) mode:
 		width := bounds.Dx()
@@ -76,10 +88,11 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 
 				queue := []point{{X: x, Y: y}}
 				visited[idx] = true
+				head := 0
 
-				for len(queue) > 0 {
-					curr := queue[0]
-					queue = queue[1:]
+				for head < len(queue) {
+					curr := queue[head]
+					head++
 
 					area++
 					if curr.X < minX { minX = curr.X }
@@ -188,9 +201,12 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 
 				queue := []point{{X: x, Y: y}}
 				visited[idx] = true
+				head := 0
 
-				for head := 0; head < len(queue); head++ {
+				for head < len(queue) {
 					curr := queue[head]
+					head++
+
 					area++
 					if curr.X < minX { minX = curr.X }
 					if curr.X > maxX { maxX = curr.X }
@@ -295,7 +311,6 @@ func getGrayscaleScore(img image.Image) float64 {
 	}
 	return float64(totalDiff) / float64(samples)
 }
-
 
 // absDiff returns the absolute difference between two uint32 numbers.
 func absDiff(a, b uint32) uint32 {

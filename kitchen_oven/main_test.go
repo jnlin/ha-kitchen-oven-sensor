@@ -26,6 +26,7 @@ func TestAnalyzeFrame(t *testing.T) {
 		NightLuminanceThreshold: 180,
 		NightBlobMinSize:        80,
 		NightBlobMaxSize:        400,
+		EnableNightMode:         true,
 	}
 
 	t.Run("both absent (black background)", func(t *testing.T) {
@@ -83,6 +84,7 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 		NightLuminanceThreshold: 180,
 		NightBlobMinSize:        80,
 		NightBlobMaxSize:        400,
+		EnableNightMode:         true,
 	}
 
 	t.Run("negatives", func(t *testing.T) {
@@ -196,6 +198,42 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("night-positives with EnableNightMode=false", func(t *testing.T) {
+		cfgDisabled := AnalysisConfig{
+			DayColorThreshold:       50,
+			NightLuminanceThreshold: 180,
+			NightBlobMinSize:        80,
+			NightBlobMaxSize:        400,
+			EnableNightMode:         false,
+		}
+
+		files, err := filepath.Glob("images/night-bluelight/*.jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(files) == 0 {
+			t.Log("Warning: No night blue light snapshots found to test")
+			return
+		}
+		for _, file := range files {
+			f, err := os.Open(file)
+			if err != nil {
+				t.Errorf("failed to open %s: %v", file, err)
+				continue
+			}
+			img, _, err := image.Decode(f)
+			_ = f.Close()
+			if err != nil {
+				t.Errorf("failed to decode %s: %v", file, err)
+				continue
+			}
+			res := AnalyzeFrame(img, cfgDisabled)
+			if res.BlueLightDetected {
+				t.Errorf("expected night positive file %s to be classified negative because EnableNightMode is false, but got positive", file)
+			}
+		}
+	})
 }
 
 func TestLoadAppConfig(t *testing.T) {
@@ -205,6 +243,7 @@ func TestLoadAppConfig(t *testing.T) {
 	t.Setenv("NIGHT_LUMINANCE_THRESHOLD", "190")
 	t.Setenv("NIGHT_BLOB_MIN_SIZE", "90")
 	t.Setenv("NIGHT_BLOB_MAX_SIZE", "450")
+	t.Setenv("ENABLE_NIGHT_MODE", "false")
 	t.Setenv("DEBUG_MODE", "true")
 	t.Setenv("MQTT_BROKER", "tcp://192.168.1.50:1883")
 	t.Setenv("SENSOR_PIN", "22")
@@ -228,6 +267,9 @@ func TestLoadAppConfig(t *testing.T) {
 	}
 	if cfg.NightBlobMaxSize != 450 {
 		t.Errorf("expected NightBlobMaxSize to be 450, got %d", cfg.NightBlobMaxSize)
+	}
+	if cfg.EnableNightMode {
+		t.Errorf("expected EnableNightMode to be false, got true")
 	}
 	if !cfg.DebugMode {
 		t.Errorf("expected DebugMode to be true")
@@ -284,17 +326,79 @@ func TestMQTTPayloads(t *testing.T) {
 
 	// 2. Verify Attributes Payload
 	currentMode := "nighttime"
-	appliedThreshold := 125
-	lastDetectionTime := "2026-06-27T19:12:00Z"
-	attrPayload := BuildAttributesPayload(currentMode, appliedThreshold, lastDetectionTime)
+	nightModeEnabled := false
+	consecutiveStateCount := 2
+	lastDetectionTime := "2026-06-28T10:00:13Z"
+	attrPayload := BuildAttributesPayload(currentMode, nightModeEnabled, consecutiveStateCount, lastDetectionTime)
 
 	if attrPayload["current_mode"] != currentMode {
 		t.Errorf("expected current_mode to be %s, got %v", currentMode, attrPayload["current_mode"])
 	}
-	if attrPayload["applied_threshold"] != appliedThreshold {
-		t.Errorf("expected applied_threshold to be %d, got %v", appliedThreshold, attrPayload["applied_threshold"])
+	if attrPayload["night_mode_enabled"] != nightModeEnabled {
+		t.Errorf("expected night_mode_enabled to be %t, got %v", nightModeEnabled, attrPayload["night_mode_enabled"])
+	}
+	if attrPayload["consecutive_state_count"] != consecutiveStateCount {
+		t.Errorf("expected consecutive_state_count to be %d, got %v", consecutiveStateCount, attrPayload["consecutive_state_count"])
 	}
 	if attrPayload["last_detection_time"] != lastDetectionTime {
 		t.Errorf("expected last_detection_time to be %s, got %v", lastDetectionTime, attrPayload["last_detection_time"])
+	}
+}
+
+func TestStateStabilization(t *testing.T) {
+	debouncer := NewStateDebouncer()
+
+	// Initial state is negative
+	if debouncer.CurrentOfficialState != "negative" {
+		t.Fatalf("expected initial state to be negative, got %s", debouncer.CurrentOfficialState)
+	}
+
+	type step struct {
+		raw              string
+		expectedOfficial string
+		expectedCount    int
+		expectedChange   bool
+	}
+
+	steps := []step{
+		// 1. First raw positive: no transition, count=1
+		{raw: "positive", expectedOfficial: "negative", expectedCount: 1, expectedChange: false},
+		// 2. Flap back to negative: count reset to 0 (since raw matches current official state)
+		{raw: "negative", expectedOfficial: "negative", expectedCount: 0, expectedChange: false},
+		// 3. Raw positive: count=1
+		{raw: "positive", expectedOfficial: "negative", expectedCount: 1, expectedChange: false},
+		// 4. Second raw positive: count=2
+		{raw: "positive", expectedOfficial: "negative", expectedCount: 2, expectedChange: false},
+		// 5. Flap to negative: count=0 (raw matches current official state)
+		{raw: "negative", expectedOfficial: "negative", expectedCount: 0, expectedChange: false},
+		// 6. First raw positive again: count=1
+		{raw: "positive", expectedOfficial: "negative", expectedCount: 1, expectedChange: false},
+		// 7. Second raw positive: count=2
+		{raw: "positive", expectedOfficial: "negative", expectedCount: 2, expectedChange: false},
+		// 8. Third raw positive: transitions to positive, count=0
+		{raw: "positive", expectedOfficial: "positive", expectedCount: 0, expectedChange: true},
+
+		// 9. Stable positive: count=0
+		{raw: "positive", expectedOfficial: "positive", expectedCount: 0, expectedChange: false},
+
+		// 10. First raw negative: count=1
+		{raw: "negative", expectedOfficial: "positive", expectedCount: 1, expectedChange: false},
+		// 11. Second raw negative: count=2
+		{raw: "negative", expectedOfficial: "positive", expectedCount: 2, expectedChange: false},
+		// 12. Third raw negative: transitions back to negative, count=0
+		{raw: "negative", expectedOfficial: "negative", expectedCount: 0, expectedChange: true},
+	}
+
+	for idx, s := range steps {
+		official, count, changed := debouncer.Update(s.raw)
+		if official != s.expectedOfficial {
+			t.Errorf("step %d: expected official state %s, got %s", idx+1, s.expectedOfficial, official)
+		}
+		if count != s.expectedCount {
+			t.Errorf("step %d: expected consecutive count %d, got %d", idx+1, s.expectedCount, count)
+		}
+		if changed != s.expectedChange {
+			t.Errorf("step %d: expected changed flag %t, got %t", idx+1, s.expectedChange, changed)
+		}
 	}
 }
