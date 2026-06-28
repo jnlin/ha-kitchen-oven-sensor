@@ -23,6 +23,10 @@ type AppConfig struct {
 	MQTTPassword             string
 	MQTTTopicPrefix          string
 	SensorPin                int
+	ROIXMin                  float64
+	ROIXMax                  float64
+	ROIYMin                  float64
+	ROIYMax                  float64
 }
 
 // LoadAppConfig resolves the application configuration:
@@ -41,6 +45,10 @@ func LoadAppConfig() (*AppConfig, error) {
 		SensorPin:                14,
 		MQTTTopicPrefix:          "homeassistant",
 		MQTTClientID:             "kitchen-camera-cli",
+		ROIXMin:                  0.62,
+		ROIXMax:                  0.72,
+		ROIYMin:                  0.76,
+		ROIYMax:                  0.84,
 	}
 
 	// 1. Home Assistant Mode
@@ -51,21 +59,25 @@ func LoadAppConfig() (*AppConfig, error) {
 		}
 
 		var opts struct {
-			RTSPURI                  string `json:"RTSP_URI"`
-			DayColorThreshold        int    `json:"DAY_COLOR_THRESHOLD"`
-			NightLuminanceThreshold  int    `json:"NIGHT_LUMINANCE_THRESHOLD"`
-			NightBlobMinSize         int    `json:"NIGHT_BLOB_MIN_SIZE"`
-			NightBlobMaxSize         int    `json:"NIGHT_BLOB_MAX_SIZE"`
-			NightConfidenceThreshold int    `json:"NIGHT_CONFIDENCE_THRESHOLD"`
-			EnableNightMode          *bool  `json:"ENABLE_NIGHT_MODE"`
-			DebugMode                bool   `json:"DEBUG_MODE"`
-			MQTTHost                 string `json:"mqtt_host"`
-			MQTTPort                 int    `json:"mqtt_port"`
-			MQTTUser                 string `json:"mqtt_user"`
-			MQTTPass                 string `json:"mqtt_pass"`
-			SensorPin                int    `json:"sensor_pin"`
-			MQTTTopicPrefix          string `json:"MQTT_TOPIC_PREFIX"`
-			MQTTClientID             string `json:"MQTT_CLIENT_ID"`
+			RTSPURI                  string   `json:"RTSP_URI"`
+			DayColorThreshold        int      `json:"DAY_COLOR_THRESHOLD"`
+			NightLuminanceThreshold  int      `json:"NIGHT_LUMINANCE_THRESHOLD"`
+			NightBlobMinSize         int      `json:"NIGHT_BLOB_MIN_SIZE"`
+			NightBlobMaxSize         int      `json:"NIGHT_BLOB_MAX_SIZE"`
+			NightConfidenceThreshold int      `json:"NIGHT_CONFIDENCE_THRESHOLD"`
+			EnableNightMode          *bool    `json:"ENABLE_NIGHT_MODE"`
+			DebugMode                bool     `json:"DEBUG_MODE"`
+			MQTTHost                 string   `json:"mqtt_host"`
+			MQTTPort                 int      `json:"mqtt_port"`
+			MQTTUser                 string   `json:"mqtt_user"`
+			MQTTPass                 string   `json:"mqtt_pass"`
+			SensorPin                int      `json:"sensor_pin"`
+			MQTTTopicPrefix          string   `json:"MQTT_TOPIC_PREFIX"`
+			MQTTClientID             string   `json:"MQTT_CLIENT_ID"`
+			ROIXMin                  *float64 `json:"ROI_X_MIN"`
+			ROIXMax                  *float64 `json:"ROI_X_MAX"`
+			ROIYMin                  *float64 `json:"ROI_Y_MIN"`
+			ROIYMax                  *float64 `json:"ROI_Y_MAX"`
 		}
 
 		if err := json.Unmarshal(data, &opts); err != nil {
@@ -102,6 +114,18 @@ func LoadAppConfig() (*AppConfig, error) {
 		}
 		if opts.SensorPin > 0 {
 			cfg.SensorPin = opts.SensorPin
+		}
+		if opts.ROIXMin != nil {
+			cfg.ROIXMin = *opts.ROIXMin
+		}
+		if opts.ROIXMax != nil {
+			cfg.ROIXMax = *opts.ROIXMax
+		}
+		if opts.ROIYMin != nil {
+			cfg.ROIYMin = *opts.ROIYMin
+		}
+		if opts.ROIYMax != nil {
+			cfg.ROIYMax = *opts.ROIYMax
 		}
 
 		// Formulate broker target from Host and Port
@@ -193,6 +217,27 @@ func LoadAppConfig() (*AppConfig, error) {
 	if pinStr := os.Getenv("SENSOR_PIN"); pinStr != "" {
 		if val, err := strconv.Atoi(pinStr); err == nil && val > 0 {
 			cfg.SensorPin = val
+		}
+	}
+
+	if valStr := os.Getenv("ROI_X_MIN"); valStr != "" {
+		if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+			cfg.ROIXMin = val
+		}
+	}
+	if valStr := os.Getenv("ROI_X_MAX"); valStr != "" {
+		if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+			cfg.ROIXMax = val
+		}
+	}
+	if valStr := os.Getenv("ROI_Y_MIN"); valStr != "" {
+		if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+			cfg.ROIYMin = val
+		}
+	}
+	if valStr := os.Getenv("ROI_Y_MAX"); valStr != "" {
+		if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+			cfg.ROIYMax = val
 		}
 	}
 

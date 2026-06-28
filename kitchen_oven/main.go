@@ -68,9 +68,18 @@ func main() {
 		NightBlobMaxSize:         cfg.NightBlobMaxSize,
 		NightConfidenceThreshold: cfg.NightConfidenceThreshold,
 		EnableNightMode:          cfg.EnableNightMode,
+		ROIXMin:                  cfg.ROIXMin,
+		ROIXMax:                  cfg.ROIXMax,
+		ROIYMin:                  cfg.ROIYMin,
+		ROIYMax:                  cfg.ROIYMax,
 	}
 
-	log.Printf("Starting RTSP Frame Processor (Interval: 10s, DayThreshold: %d, NightLuminanceThreshold: %d, NightBlobMinSize: %d, NightBlobMaxSize: %d, NightConfidenceThreshold: %d, EnableNightMode: %t, Debug: %t, Sensor Pin: %d)", cfg.DayColorThreshold, cfg.NightLuminanceThreshold, cfg.NightBlobMinSize, cfg.NightBlobMaxSize, cfg.NightConfidenceThreshold, cfg.EnableNightMode, cfg.DebugMode, cfg.SensorPin)
+	log.Println("Starting RTSP Frame Processor:")
+	log.Printf("  - Interval: 10s, Debug: %t, Sensor Pin: %d", cfg.DebugMode, cfg.SensorPin)
+	log.Printf("  - DayThreshold: %d", cfg.DayColorThreshold)
+	log.Printf("  - NightMode: Enabled=%t, Threshold=%d, BlobRange=[%d, %d], Confidence=%d",
+		cfg.EnableNightMode, cfg.NightLuminanceThreshold, cfg.NightBlobMinSize, cfg.NightBlobMaxSize, cfg.NightConfidenceThreshold)
+	log.Printf("  - ROI: X=[%.2f, %.2f], Y=[%.2f, %.2f]", cfg.ROIXMin, cfg.ROIXMax, cfg.ROIYMin, cfg.ROIYMax)
 
 	// Start background analyzer worker
 	go analyzerWorker(ctx, frameChan, analysisCfg, cfg.DebugMode, mqttMgr)

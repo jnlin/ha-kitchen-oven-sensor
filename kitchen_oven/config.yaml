@@ -1,5 +1,5 @@
 name: Kitchen Oven Sensor
-version: '0.0.14'
+version: '0.0.15'
 slug: kitchen_oven
 description: Processes RTSP video streams for oven state and publishes to MQTT.
 arch:
@@ -23,6 +23,10 @@ options:
   sensor_pin: 14
   MQTT_TOPIC_PREFIX: "homeassistant"
   MQTT_CLIENT_ID: "kitchen-camera-cli"
+  ROI_X_MIN: 0.62
+  ROI_X_MAX: 0.72
+  ROI_Y_MIN: 0.76
+  ROI_Y_MAX: 0.84
 schema:
   RTSP_URI: str
   DAY_COLOR_THRESHOLD: int
@@ -39,4 +43,8 @@ schema:
   sensor_pin: int
   MQTT_TOPIC_PREFIX: str?
   MQTT_CLIENT_ID: str?
+  ROI_X_MIN: float?
+  ROI_X_MAX: float?
+  ROI_Y_MIN: float?
+  ROI_Y_MAX: float?
 image: 'ghcr.io/jnlin/ha-kitchen-oven-sensor-{arch}'

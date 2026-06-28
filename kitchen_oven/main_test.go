@@ -267,6 +267,79 @@ func TestAnalyzeFrame(t *testing.T) {
 			t.Errorf("expected Justification to be %q, got %q", expectedJustification, res.Justification)
 		}
 	})
+
+	t.Run("custom ROI filtering", func(t *testing.T) {
+		cfgCustom := AnalysisConfig{
+			DayColorThreshold:        10,
+			NightLuminanceThreshold:  180,
+			NightBlobMinSize:         80,
+			NightBlobMaxSize:         1000,
+			NightConfidenceThreshold: 80,
+			EnableNightMode:          true,
+			ROIXMin:                  0.2,
+			ROIXMax:                  0.4,
+			ROIYMin:                  0.3,
+			ROIYMax:                  0.5,
+		}
+
+		blueColor := color.RGBA{R: 50, G: 50, B: 240, A: 255}
+		redBackground := color.RGBA{R: 200, G: 0, B: 0, A: 255}
+
+		// 1. Blob center is outside the custom ROI: X center = 1000 (0.5), Y center = 800 (0.4)
+		imgOutside := createTestImage(2000, 2000, redBackground)
+		for y := 790; y < 810; y++ {
+			for x := 990; x < 1010; x++ {
+				imgOutside.Set(x, y, blueColor)
+			}
+		}
+		resOutside := AnalyzeFrame(imgOutside, cfgCustom)
+		if resOutside.BlueLightDetected {
+			t.Errorf("expected no detection since blob is outside custom ROI")
+		}
+
+		// 2. Blob center is inside the custom ROI: X center = 600 (0.3), Y center = 800 (0.4)
+		imgInside := createTestImage(2000, 2000, redBackground)
+		for y := 790; y < 810; y++ {
+			for x := 590; x < 610; x++ {
+				imgInside.Set(x, y, blueColor)
+			}
+		}
+		resInside := AnalyzeFrame(imgInside, cfgCustom)
+		if !resInside.BlueLightDetected {
+			t.Errorf("expected detection since blob is inside custom ROI")
+		}
+	})
+
+	t.Run("invalid ROI fallback", func(t *testing.T) {
+		cfgInvalid := AnalysisConfig{
+			DayColorThreshold:        10,
+			NightLuminanceThreshold:  180,
+			NightBlobMinSize:         80,
+			NightBlobMaxSize:         1000,
+			NightConfidenceThreshold: 80,
+			EnableNightMode:          true,
+			ROIXMin:                  -0.5, // Invalid value (outside [0.0, 1.0])
+			ROIXMax:                  0.4,
+			ROIYMin:                  0.3,
+			ROIYMax:                  0.5,
+		}
+
+		blueColor := color.RGBA{R: 50, G: 50, B: 240, A: 255}
+		redBackground := color.RGBA{R: 200, G: 0, B: 0, A: 255}
+
+		// Since cfgInvalid coordinates are invalid, it should fall back to defaults (X in [0.62, 0.72], Y in [0.76, 0.84]).
+		// Let's place a blob in the default ROI: center X = 1380 (0.69), center Y = 1600 (0.80) on 2000x2000 image.
+		imgFallback := createTestImage(2000, 2000, redBackground)
+		for y := 1590; y < 1610; y++ {
+			for x := 1370; x < 1390; x++ {
+				imgFallback.Set(x, y, blueColor)
+			}
+		}
+		res := AnalyzeFrame(imgFallback, cfgInvalid)
+		if !res.BlueLightDetected {
+			t.Errorf("expected detection since invalid ROI coordinates should fall back to default ROI bounds")
+		}
+	})
 }
 
 func TestCameraSnapshotsIntegration(t *testing.T) {
@@ -277,6 +350,10 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 		NightBlobMaxSize:         1000,
 		NightConfidenceThreshold: 80,
 		EnableNightMode:          true,
+		ROIXMin:                  0.62,
+		ROIXMax:                  0.72,
+		ROIYMin:                  0.76,
+		ROIYMax:                  0.84,
 	}
 
 	t.Run("daytime-negatives", func(t *testing.T) {
@@ -399,6 +476,10 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 			NightBlobMaxSize:         1000,
 			NightConfidenceThreshold: 80,
 			EnableNightMode:          false,
+			ROIXMin:                  0.62,
+			ROIXMax:                  0.72,
+			ROIYMin:                  0.76,
+			ROIYMax:                  0.84,
 		}
 
 		files, err := filepath.Glob("images/night-positive/*.jpg")
@@ -441,6 +522,10 @@ func TestLoadAppConfig(t *testing.T) {
 	t.Setenv("DEBUG_MODE", "true")
 	t.Setenv("MQTT_BROKER", "tcp://192.168.1.50:1883")
 	t.Setenv("SENSOR_PIN", "22")
+	t.Setenv("ROI_X_MIN", "0.1")
+	t.Setenv("ROI_X_MAX", "0.2")
+	t.Setenv("ROI_Y_MIN", "0.3")
+	t.Setenv("ROI_Y_MAX", "0.4")
 
 	cfg, err := LoadAppConfig()
 	if err != nil {
@@ -476,6 +561,18 @@ func TestLoadAppConfig(t *testing.T) {
 	}
 	if cfg.SensorPin != 22 {
 		t.Errorf("expected SensorPin to be 22, got %d", cfg.SensorPin)
+	}
+	if cfg.ROIXMin != 0.1 {
+		t.Errorf("expected ROIXMin to be 0.1, got %f", cfg.ROIXMin)
+	}
+	if cfg.ROIXMax != 0.2 {
+		t.Errorf("expected ROIXMax to be 0.2, got %f", cfg.ROIXMax)
+	}
+	if cfg.ROIYMin != 0.3 {
+		t.Errorf("expected ROIYMin to be 0.3, got %f", cfg.ROIYMin)
+	}
+	if cfg.ROIYMax != 0.4 {
+		t.Errorf("expected ROIYMax to be 0.4, got %f", cfg.ROIYMax)
 	}
 
 	t.Run("backward compatibility with DETECTION_THRESHOLD", func(t *testing.T) {
@@ -633,4 +730,72 @@ func TestStateStabilization(t *testing.T) {
 			t.Errorf("step %d: expected changed flag %t, got %t", idx+1, s.expectedChange, changed)
 		}
 	}
+}
+
+func TestIsInOvenROI(t *testing.T) {
+	bounds := image.Rect(0, 0, 2000, 2000)
+
+	// Helper for cleaner tests
+	testCase := func(name string, minX, maxX, minY, maxY int, cfg AnalysisConfig, expected bool) {
+		t.Run(name, func(t *testing.T) {
+			res := isInOvenROI(minX, maxX, minY, maxY, bounds, cfg)
+			if res != expected {
+				t.Errorf("expected %t, got %t", expected, res)
+			}
+		})
+	}
+
+	// 1. If width is under 2000, it should always pass
+	smallBounds := image.Rect(0, 0, 1000, 1000)
+	t.Run("width < 2000", func(t *testing.T) {
+		cfg := AnalysisConfig{ROIXMin: 0.1, ROIXMax: 0.2, ROIYMin: 0.3, ROIYMax: 0.4}
+		res := isInOvenROI(500, 520, 500, 520, smallBounds, cfg)
+		if !res {
+			t.Errorf("expected true for width < 2000")
+		}
+	})
+
+	// 2. Valid custom ROI coordinates
+	cfgValid := AnalysisConfig{
+		ROIXMin: 0.1,
+		ROIXMax: 0.3,
+		ROIYMin: 0.2,
+		ROIYMax: 0.4,
+	}
+	// Center: X=200 (0.1), Y=600 (0.3). Matches custom ROI.
+	testCase("valid custom ROI - inside", 190, 210, 590, 610, cfgValid, true)
+	// Center: X=1000 (0.5), Y=600 (0.3). Outside custom ROI.
+	testCase("valid custom ROI - outside", 990, 1010, 590, 610, cfgValid, false)
+
+	// 3. Invalid custom ROI (X_MIN < 0.0) -> Fallback to defaults X in [0.62, 0.72], Y in [0.76, 0.84]
+	cfgInvalid1 := AnalysisConfig{
+		ROIXMin: -0.1,
+		ROIXMax: 0.3,
+		ROIYMin: 0.2,
+		ROIYMax: 0.4,
+	}
+	// Center: X=1380 (0.69), Y=1600 (0.80). Matches default ROI.
+	testCase("invalid ROI (min < 0) - inside fallback", 1370, 1390, 1590, 1610, cfgInvalid1, true)
+	// Center: X=200 (0.1), Y=600 (0.3). Matches custom ROI bounds but should fall back and fail.
+	testCase("invalid ROI (min < 0) - outside fallback", 190, 210, 590, 610, cfgInvalid1, false)
+
+	// 4. Invalid custom ROI (Y_MAX > 1.0) -> Fallback to defaults
+	cfgInvalid2 := AnalysisConfig{
+		ROIXMin: 0.1,
+		ROIXMax: 0.3,
+		ROIYMin: 0.2,
+		ROIYMax: 1.5,
+	}
+	// Center: X=1380 (0.69), Y=1600 (0.80). Matches default ROI.
+	testCase("invalid ROI (max > 1) - inside fallback", 1370, 1390, 1590, 1610, cfgInvalid2, true)
+
+	// 5. Invalid custom ROI (Min >= Max) -> Fallback to defaults
+	cfgInvalid3 := AnalysisConfig{
+		ROIXMin: 0.4,
+		ROIXMax: 0.2,
+		ROIYMin: 0.2,
+		ROIYMax: 0.4,
+	}
+	// Center: X=1380 (0.69), Y=1600 (0.80). Matches default ROI.
+	testCase("invalid ROI (min >= max) - inside fallback", 1370, 1390, 1590, 1610, cfgInvalid3, true)
 }
