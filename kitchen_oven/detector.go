@@ -237,9 +237,15 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 				// Evaluate the blob immediately
 				cy := (minY + maxY) / 2
 
-				// Exclude blobs close to top/bottom borders (timestamps, overlays) on high-res camera frames
+				// Exclude blobs close to top/bottom borders (timestamps, overlays) on high-res camera frames.
+				// Also exclude blobs on the far left and right edges (e.g., within the outer 15% margins of the frame)
+				// to prevent false positives from window light reflections and other peripheral clutter, while
+				// keeping the central region (center-left and center-right, where the oven indicators reside) active.
 				if bounds.Max.Y >= 600 {
-					if cy < 400 || cy > bounds.Max.Y-150 {
+					cx := (minX + maxX) / 2
+					minXBound := bounds.Max.X * 15 / 100
+					maxXBound := bounds.Max.X * 85 / 100
+					if cy < 400 || cy > bounds.Max.Y-150 || cx < minXBound || cx > maxXBound {
 						continue
 					}
 				}
