@@ -130,19 +130,19 @@ func TestAnalyzeFrame(t *testing.T) {
 		// For grayscale mode, we need:
 		// - raw gray >= NightLuminanceThreshold (180)
 		// - maxGray >= 240
-		// - avgG >= 210
-		// - fill >= 0.40
-		// - aspect <= 2.5
-		// We can make a 10x10 square of pixels with gray=255.
-		// Area = 100 pixels, which is between NightBlobMinSize(80) and NightBlobMaxSize(400).
-		// Width = 10, Height = 10, aspect = 1.0 (<= 2.5), fill = 1.0 (>= 0.40), maxGray = 255, avgG = 255.
+		// - avgG >= 220
+		// - fill >= 0.40 && fill <= 0.75
+		// - aspect <= 2.0
+		// We'll construct a circular blob of radius 5. Area is 81 pixels, aspect is 1.0, fill is 0.67, avgG is 255.
 		brightColor := color.Gray{Y: 255}
 
 		// 2a. Bright blob in far-left excluded region (center X = 55, center Y = 505)
 		imgNightLeft := createTestImage(1000, 800, color.Black)
-		for y := 500; y < 510; y++ {
-			for x := 50; x < 60; x++ {
-				imgNightLeft.Set(x, y, brightColor)
+		for dy := -5; dy <= 5; dy++ {
+			for dx := -5; dx <= 5; dx++ {
+				if dx*dx+dy*dy <= 25 {
+					imgNightLeft.Set(55+dx, 505+dy, brightColor)
+				}
 			}
 		}
 		res = AnalyzeFrame(imgNightLeft, cfg)
@@ -152,9 +152,11 @@ func TestAnalyzeFrame(t *testing.T) {
 
 		// 2b. Bright blob in far-right excluded region (center X = 905, center Y = 505)
 		imgNightRight := createTestImage(1000, 800, color.Black)
-		for y := 500; y < 510; y++ {
-			for x := 900; x < 910; x++ {
-				imgNightRight.Set(x, y, brightColor)
+		for dy := -5; dy <= 5; dy++ {
+			for dx := -5; dx <= 5; dx++ {
+				if dx*dx+dy*dy <= 25 {
+					imgNightRight.Set(905+dx, 505+dy, brightColor)
+				}
 			}
 		}
 		res = AnalyzeFrame(imgNightRight, cfg)
@@ -164,9 +166,11 @@ func TestAnalyzeFrame(t *testing.T) {
 
 		// 2c. Bright blob in active center region (center X = 505, center Y = 505)
 		imgNightCenter := createTestImage(1000, 800, color.Black)
-		for y := 500; y < 510; y++ {
-			for x := 500; x < 510; x++ {
-				imgNightCenter.Set(x, y, brightColor)
+		for dy := -5; dy <= 5; dy++ {
+			for dx := -5; dx <= 5; dx++ {
+				if dx*dx+dy*dy <= 25 {
+					imgNightCenter.Set(505+dx, 505+dy, brightColor)
+				}
 			}
 		}
 		res = AnalyzeFrame(imgNightCenter, cfg)

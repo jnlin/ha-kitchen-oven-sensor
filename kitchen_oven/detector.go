@@ -148,10 +148,10 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 				// Apply geometric and intensity filters to isolate the oven light
 				aspectValid := true
 				if bounds.Max.Y >= 600 {
-					aspectValid = aspect <= 2.5
+					aspectValid = aspect <= 2.0
 				}
 
-				if area >= cfg.NightBlobMinSize && area <= cfg.NightBlobMaxSize && aspectValid && fill >= 0.40 && maxGray >= 240 && avgG >= 210 {
+				if area >= cfg.NightBlobMinSize && area <= cfg.NightBlobMaxSize && aspectValid && fill >= 0.40 && fill <= 0.75 && maxGray >= 240 && avgG >= 220 {
 					if area > maxMatchingArea {
 						maxMatchingArea = area
 					}
