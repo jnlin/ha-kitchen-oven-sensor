@@ -9,19 +9,20 @@ import (
 
 // AppConfig holds the generic configuration values used across the application.
 type AppConfig struct {
-	RTSPURI                 string
-	DayColorThreshold       int
-	NightLuminanceThreshold int
-	NightBlobMinSize        int
-	NightBlobMaxSize        int
-	EnableNightMode         bool
-	DebugMode               bool
-	MQTTBroker              string
-	MQTTClientID            string
-	MQTTUser                string
-	MQTTPassword            string
-	MQTTTopicPrefix         string
-	SensorPin               int
+	RTSPURI                  string
+	DayColorThreshold        int
+	NightLuminanceThreshold  int
+	NightBlobMinSize         int
+	NightBlobMaxSize         int
+	NightConfidenceThreshold int
+	EnableNightMode          bool
+	DebugMode                bool
+	MQTTBroker               string
+	MQTTClientID             string
+	MQTTUser                 string
+	MQTTPassword             string
+	MQTTTopicPrefix          string
+	SensorPin                int
 }
 
 // LoadAppConfig resolves the application configuration:
@@ -31,14 +32,15 @@ func LoadAppConfig() (*AppConfig, error) {
 	const hassOptionsPath = "/data/options.json"
 
 	cfg := &AppConfig{
-		DayColorThreshold:       50,
-		NightLuminanceThreshold: 180,
-		NightBlobMinSize:        80,
-		NightBlobMaxSize:        400,
-		EnableNightMode:         true,
-		SensorPin:               14,
-		MQTTTopicPrefix:         "homeassistant",
-		MQTTClientID:            "kitchen-camera-cli",
+		DayColorThreshold:        50,
+		NightLuminanceThreshold:  180,
+		NightBlobMinSize:         80,
+		NightBlobMaxSize:         1000,
+		NightConfidenceThreshold: 80,
+		EnableNightMode:          true,
+		SensorPin:                14,
+		MQTTTopicPrefix:          "homeassistant",
+		MQTTClientID:             "kitchen-camera-cli",
 	}
 
 	// 1. Home Assistant Mode
@@ -49,20 +51,21 @@ func LoadAppConfig() (*AppConfig, error) {
 		}
 
 		var opts struct {
-			RTSPURI                 string `json:"RTSP_URI"`
-			DayColorThreshold       int    `json:"DAY_COLOR_THRESHOLD"`
-			NightLuminanceThreshold int    `json:"NIGHT_LUMINANCE_THRESHOLD"`
-			NightBlobMinSize        int    `json:"NIGHT_BLOB_MIN_SIZE"`
-			NightBlobMaxSize        int    `json:"NIGHT_BLOB_MAX_SIZE"`
-			EnableNightMode         *bool  `json:"ENABLE_NIGHT_MODE"`
-			DebugMode               bool   `json:"DEBUG_MODE"`
-			MQTTHost                string `json:"mqtt_host"`
-			MQTTPort                int    `json:"mqtt_port"`
-			MQTTUser                string `json:"mqtt_user"`
-			MQTTPass                string `json:"mqtt_pass"`
-			SensorPin               int    `json:"sensor_pin"`
-			MQTTTopicPrefix         string `json:"MQTT_TOPIC_PREFIX"`
-			MQTTClientID            string `json:"MQTT_CLIENT_ID"`
+			RTSPURI                  string `json:"RTSP_URI"`
+			DayColorThreshold        int    `json:"DAY_COLOR_THRESHOLD"`
+			NightLuminanceThreshold  int    `json:"NIGHT_LUMINANCE_THRESHOLD"`
+			NightBlobMinSize         int    `json:"NIGHT_BLOB_MIN_SIZE"`
+			NightBlobMaxSize         int    `json:"NIGHT_BLOB_MAX_SIZE"`
+			NightConfidenceThreshold int    `json:"NIGHT_CONFIDENCE_THRESHOLD"`
+			EnableNightMode          *bool  `json:"ENABLE_NIGHT_MODE"`
+			DebugMode                bool   `json:"DEBUG_MODE"`
+			MQTTHost                 string `json:"mqtt_host"`
+			MQTTPort                 int    `json:"mqtt_port"`
+			MQTTUser                 string `json:"mqtt_user"`
+			MQTTPass                 string `json:"mqtt_pass"`
+			SensorPin                int    `json:"sensor_pin"`
+			MQTTTopicPrefix          string `json:"MQTT_TOPIC_PREFIX"`
+			MQTTClientID             string `json:"MQTT_CLIENT_ID"`
 		}
 
 		if err := json.Unmarshal(data, &opts); err != nil {
@@ -81,6 +84,9 @@ func LoadAppConfig() (*AppConfig, error) {
 		}
 		if opts.NightBlobMaxSize > 0 {
 			cfg.NightBlobMaxSize = opts.NightBlobMaxSize
+		}
+		if opts.NightConfidenceThreshold > 0 {
+			cfg.NightConfidenceThreshold = opts.NightConfidenceThreshold
 		}
 		if opts.EnableNightMode != nil {
 			cfg.EnableNightMode = *opts.EnableNightMode
@@ -138,6 +144,12 @@ func LoadAppConfig() (*AppConfig, error) {
 	if valStr := os.Getenv("NIGHT_BLOB_MAX_SIZE"); valStr != "" {
 		if val, err := strconv.Atoi(valStr); err == nil && val > 0 {
 			cfg.NightBlobMaxSize = val
+		}
+	}
+
+	if valStr := os.Getenv("NIGHT_CONFIDENCE_THRESHOLD"); valStr != "" {
+		if val, err := strconv.Atoi(valStr); err == nil && val > 0 {
+			cfg.NightConfidenceThreshold = val
 		}
 	}
 

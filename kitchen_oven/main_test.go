@@ -23,11 +23,12 @@ func createTestImage(width, height int, baseColor color.Color) *image.RGBA {
 
 func TestAnalyzeFrame(t *testing.T) {
 	cfg := AnalysisConfig{
-		DayColorThreshold:       10,
-		NightLuminanceThreshold: 180,
-		NightBlobMinSize:        80,
-		NightBlobMaxSize:        400,
-		EnableNightMode:         true,
+		DayColorThreshold:        10,
+		NightLuminanceThreshold:  180,
+		NightBlobMinSize:         80,
+		NightBlobMaxSize:         1000,
+		NightConfidenceThreshold: 80,
+		EnableNightMode:          true,
 	}
 
 	t.Run("both absent (black background)", func(t *testing.T) {
@@ -83,12 +84,12 @@ func TestAnalyzeFrame(t *testing.T) {
 		// Margins: Y: Top 400 pixels are excluded (cy < 400), bottom 150 pixels are excluded (cy > 800 - 150 = 650).
 		//          X: Left 150 pixels are excluded (cx < 15% of 1000 = 150), right 150 pixels are excluded (cx > 85% of 1000 = 850).
 		// Center: (150 to 850, 400 to 650)
-		
+
 		// 1. Daytime (color) mode testing
 		// We'll set a blue blob (matching dayColorThreshold = 10) in various locations.
 		blueColor := color.RGBA{R: 50, G: 50, B: 240, A: 255}
 		redBackground := color.RGBA{R: 200, G: 0, B: 0, A: 255}
-		
+
 		// 1a. Blue blob in far-left excluded region (X: 50..53, Y: 500..502)
 		imgLeft := createTestImage(1000, 800, redBackground)
 		for y := 500; y < 503; y++ {
@@ -178,15 +179,104 @@ func TestAnalyzeFrame(t *testing.T) {
 			t.Errorf("nighttime: expected detection in center region, but got false")
 		}
 	})
+
+	t.Run("nighttime output format and threshold checks", func(t *testing.T) {
+		brightColor := color.Gray{Y: 255}
+		img := createTestImage(1000, 800, color.Black)
+		for dy := -5; dy <= 5; dy++ {
+			for dx := -5; dx <= 5; dx++ {
+				if dx*dx+dy*dy <= 25 {
+					img.Set(505+dx, 505+dy, brightColor)
+				}
+			}
+		}
+
+		// 1. With a low confidence threshold (e.g. 50), it should be detected as positive
+		cfgLow := AnalysisConfig{
+			DayColorThreshold:        10,
+			NightLuminanceThreshold:  180,
+			NightBlobMinSize:         80,
+			NightBlobMaxSize:         1000,
+			NightConfidenceThreshold: 50,
+			EnableNightMode:          true,
+		}
+		resLow := AnalyzeFrame(img, cfgLow)
+		if !resLow.BlueLightDetected {
+			t.Errorf("expected BlueLightDetected to be true for threshold 50")
+		}
+		if resLow.Status != "positive" {
+			t.Errorf("expected Status to be 'positive', got %q", resLow.Status)
+		}
+		if resLow.ConfidenceScore < 50 {
+			t.Errorf("expected ConfidenceScore >= 50, got %d", resLow.ConfidenceScore)
+		}
+		if resLow.Justification == "" {
+			t.Errorf("expected non-empty Justification")
+		}
+
+		// 2. With an extremely high confidence threshold (e.g. 101), it should be negative
+		cfgHigh := AnalysisConfig{
+			DayColorThreshold:        10,
+			NightLuminanceThreshold:  180,
+			NightBlobMinSize:         80,
+			NightBlobMaxSize:         1000,
+			NightConfidenceThreshold: 101,
+			EnableNightMode:          true,
+		}
+		resHigh := AnalyzeFrame(img, cfgHigh)
+		if resHigh.BlueLightDetected {
+			t.Errorf("expected BlueLightDetected to be false for threshold 101")
+		}
+		if resHigh.Status != "negative" {
+			t.Errorf("expected Status to be 'negative', got %q", resHigh.Status)
+		}
+	})
+
+	t.Run("nighttime zero confidence candidate rejection", func(t *testing.T) {
+		grayColor := color.Gray{Y: 190}
+		img := createTestImage(1000, 800, color.Black)
+		for dy := -5; dy <= 5; dy++ {
+			for dx := -5; dx <= 5; dx++ {
+				if dx*dx+dy*dy <= 25 {
+					img.Set(505+dx, 505+dy, grayColor)
+				}
+			}
+		}
+
+		cfgTest := AnalysisConfig{
+			DayColorThreshold:        10,
+			NightLuminanceThreshold:  180,
+			NightBlobMinSize:         80,
+			NightBlobMaxSize:         1000,
+			NightConfidenceThreshold: 50,
+			EnableNightMode:          true,
+		}
+
+		res := AnalyzeFrame(img, cfgTest)
+		if res.BlueLightDetected {
+			t.Errorf("expected BlueLightDetected to be false for 0-confidence blob")
+		}
+		if res.ConfidenceScore != 0 {
+			t.Errorf("expected ConfidenceScore to be 0, got %d", res.ConfidenceScore)
+		}
+		if res.BluePixelCount != 0 {
+			t.Errorf("expected BluePixelCount to be 0, got %d", res.BluePixelCount)
+		}
+		expectedJustification := "No valid bright blob matching LED criteria was detected"
+		if res.Justification != expectedJustification {
+			t.Errorf("expected Justification to be %q, got %q", expectedJustification, res.Justification)
+		}
+	})
 }
 
 func TestCameraSnapshotsIntegration(t *testing.T) {
 	cfg := AnalysisConfig{
-		DayColorThreshold:       50,
-		NightLuminanceThreshold: 180,
-		NightBlobMinSize:        80,
-		NightBlobMaxSize:        400,
-		EnableNightMode:         true,
+		DayColorThreshold:        50,
+		NightLuminanceThreshold:  180,
+		NightBlobMinSize:         80,
+		NightBlobMaxSize:         1000,
+		NightConfidenceThreshold: 80,
+		EnableNightMode:          true,
 	}
 
 	t.Run("daytime-negatives", func(t *testing.T) {
@@ -303,11 +393,12 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 
 	t.Run("night-positives with EnableNightMode=false", func(t *testing.T) {
 		cfgDisabled := AnalysisConfig{
-			DayColorThreshold:       50,
-			NightLuminanceThreshold: 180,
-			NightBlobMinSize:        80,
-			NightBlobMaxSize:        400,
-			EnableNightMode:         false,
+			DayColorThreshold:        50,
+			NightLuminanceThreshold:  180,
+			NightBlobMinSize:         80,
+			NightBlobMaxSize:         1000,
+			NightConfidenceThreshold: 80,
+			EnableNightMode:          false,
 		}
 
 		files, err := filepath.Glob("images/night-positive/*.jpg")
@@ -345,6 +436,7 @@ func TestLoadAppConfig(t *testing.T) {
 	t.Setenv("NIGHT_LUMINANCE_THRESHOLD", "190")
 	t.Setenv("NIGHT_BLOB_MIN_SIZE", "90")
 	t.Setenv("NIGHT_BLOB_MAX_SIZE", "450")
+	t.Setenv("NIGHT_CONFIDENCE_THRESHOLD", "85")
 	t.Setenv("ENABLE_NIGHT_MODE", "false")
 	t.Setenv("DEBUG_MODE", "true")
 	t.Setenv("MQTT_BROKER", "tcp://192.168.1.50:1883")
@@ -369,6 +461,9 @@ func TestLoadAppConfig(t *testing.T) {
 	}
 	if cfg.NightBlobMaxSize != 450 {
 		t.Errorf("expected NightBlobMaxSize to be 450, got %d", cfg.NightBlobMaxSize)
+	}
+	if cfg.NightConfidenceThreshold != 85 {
+		t.Errorf("expected NightConfidenceThreshold to be 85, got %d", cfg.NightConfidenceThreshold)
 	}
 	if cfg.EnableNightMode {
 		t.Errorf("expected EnableNightMode to be false, got true")
@@ -435,6 +530,9 @@ func TestMQTTPayloads(t *testing.T) {
 		MatchingPixels:        142,
 		AppliedThreshold:      80,
 		GrayscaleScore:        5.2,
+		ConfidenceScore:       75,
+		Status:                "negative",
+		Justification:         "LED below threshold",
 	}
 
 	bytes, err := json.Marshal(attrs)
@@ -467,6 +565,15 @@ func TestMQTTPayloads(t *testing.T) {
 	}
 	if parsed["gray_variance"] != attrs.GrayscaleScore {
 		t.Errorf("expected gray_variance to be %f, got %v", attrs.GrayscaleScore, parsed["gray_variance"])
+	}
+	if parsed["confidence_score"] != float64(attrs.ConfidenceScore) {
+		t.Errorf("expected confidence_score to be %d, got %v", attrs.ConfidenceScore, parsed["confidence_score"])
+	}
+	if parsed["status"] != attrs.Status {
+		t.Errorf("expected status to be %s, got %v", attrs.Status, parsed["status"])
+	}
+	if parsed["justification"] != attrs.Justification {
+		t.Errorf("expected justification to be %s, got %v", attrs.Justification, parsed["justification"])
 	}
 }
 

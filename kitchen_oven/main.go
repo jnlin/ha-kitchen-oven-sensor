@@ -62,14 +62,15 @@ func main() {
 	frameChan := make(chan FrameData, 1)
 
 	analysisCfg := AnalysisConfig{
-		DayColorThreshold:       cfg.DayColorThreshold,
-		NightLuminanceThreshold: cfg.NightLuminanceThreshold,
-		NightBlobMinSize:        cfg.NightBlobMinSize,
-		NightBlobMaxSize:        cfg.NightBlobMaxSize,
-		EnableNightMode:         cfg.EnableNightMode,
+		DayColorThreshold:        cfg.DayColorThreshold,
+		NightLuminanceThreshold:  cfg.NightLuminanceThreshold,
+		NightBlobMinSize:         cfg.NightBlobMinSize,
+		NightBlobMaxSize:         cfg.NightBlobMaxSize,
+		NightConfidenceThreshold: cfg.NightConfidenceThreshold,
+		EnableNightMode:          cfg.EnableNightMode,
 	}
 
-	log.Printf("Starting RTSP Frame Processor (Interval: 10s, DayThreshold: %d, NightLuminanceThreshold: %d, NightBlobMinSize: %d, NightBlobMaxSize: %d, EnableNightMode: %t, Debug: %t, Sensor Pin: %d)", cfg.DayColorThreshold, cfg.NightLuminanceThreshold, cfg.NightBlobMinSize, cfg.NightBlobMaxSize, cfg.EnableNightMode, cfg.DebugMode, cfg.SensorPin)
+	log.Printf("Starting RTSP Frame Processor (Interval: 10s, DayThreshold: %d, NightLuminanceThreshold: %d, NightBlobMinSize: %d, NightBlobMaxSize: %d, NightConfidenceThreshold: %d, EnableNightMode: %t, Debug: %t, Sensor Pin: %d)", cfg.DayColorThreshold, cfg.NightLuminanceThreshold, cfg.NightBlobMinSize, cfg.NightBlobMaxSize, cfg.NightConfidenceThreshold, cfg.EnableNightMode, cfg.DebugMode, cfg.SensorPin)
 
 	// Start background analyzer worker
 	go analyzerWorker(ctx, frameChan, analysisCfg, cfg.DebugMode, mqttMgr)
@@ -301,19 +302,16 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, analysisCfg
 					MatchingPixels:        res.BluePixelCount,
 					AppliedThreshold:      res.AppliedThreshold,
 					GrayscaleScore:        res.GrayscaleScore,
+					ConfidenceScore:       res.ConfidenceScore,
+					Status:                res.Status,
+					Justification:         res.Justification,
 				})
 			}
 
 			// Output detailed result only in debug mode
 			if debugMode {
-				var reason string
-				if res.BlueLightDetected {
-					reason = fmt.Sprintf("condition met: mode=%s, applied_threshold=%d, matching_pixels=%d, gray_variance=%.2f",
-						res.CurrentMode, res.AppliedThreshold, res.BluePixelCount, res.GrayscaleScore)
-				} else {
-					reason = fmt.Sprintf("condition not met: mode=%s, applied_threshold=%d, matching_pixels=%d, gray_variance=%.2f",
-						res.CurrentMode, res.AppliedThreshold, res.BluePixelCount, res.GrayscaleScore)
-				}
+				reason := fmt.Sprintf("mode=%s, status=%s, confidence=%d, applied_threshold=%d, justification=%q, gray_variance=%.2f",
+					res.CurrentMode, res.Status, res.ConfidenceScore, res.AppliedThreshold, res.Justification, res.GrayscaleScore)
 				log.Printf("%s (%s)", rawState, reason)
 
 				if stateChanged {
