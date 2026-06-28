@@ -66,9 +66,10 @@ func main() {
 		NightLuminanceThreshold: cfg.NightLuminanceThreshold,
 		NightBlobMinSize:        cfg.NightBlobMinSize,
 		NightBlobMaxSize:        cfg.NightBlobMaxSize,
+		EnableNightMode:         cfg.EnableNightMode,
 	}
 
-	log.Printf("Starting RTSP Frame Processor (Interval: 10s, DayThreshold: %d, NightLuminanceThreshold: %d, NightBlobMinSize: %d, NightBlobMaxSize: %d, Debug: %t, Sensor Pin: %d)", cfg.DayColorThreshold, cfg.NightLuminanceThreshold, cfg.NightBlobMinSize, cfg.NightBlobMaxSize, cfg.DebugMode, cfg.SensorPin)
+	log.Printf("Starting RTSP Frame Processor (Interval: 10s, DayThreshold: %d, NightLuminanceThreshold: %d, NightBlobMinSize: %d, NightBlobMaxSize: %d, EnableNightMode: %t, Debug: %t, Sensor Pin: %d)", cfg.DayColorThreshold, cfg.NightLuminanceThreshold, cfg.NightBlobMinSize, cfg.NightBlobMaxSize, cfg.EnableNightMode, cfg.DebugMode, cfg.SensorPin)
 
 	// Start background analyzer worker
 	go analyzerWorker(ctx, frameChan, analysisCfg, cfg.DebugMode, mqttMgr)
@@ -202,11 +203,53 @@ func connectAndPlay(ctx context.Context, rtspURI string, frameChan chan FrameDat
 	}
 }
 
+// StateDebouncer tracks consecutive frames to stabilize state transitions.
+type StateDebouncer struct {
+	CurrentOfficialState string
+	LastRawState         string
+	ConsecutiveCount     int
+}
+
+// NewStateDebouncer initializes the debouncer starting at "negative".
+func NewStateDebouncer() *StateDebouncer {
+	return &StateDebouncer{
+		CurrentOfficialState: "negative",
+		LastRawState:         "negative",
+		ConsecutiveCount:     0,
+	}
+}
+
+// Update evaluates a raw state and returns (newOfficialState, currentConsecutiveCount, stateChanged).
+func (d *StateDebouncer) Update(rawState string) (string, int, bool) {
+	stateChanged := false
+	transitionCount := 0
+
+	if rawState != d.CurrentOfficialState {
+		if rawState == d.LastRawState {
+			d.ConsecutiveCount++
+		} else {
+			d.ConsecutiveCount = 1
+		}
+		if d.ConsecutiveCount >= 3 {
+			d.CurrentOfficialState = rawState
+			d.ConsecutiveCount = 0
+			stateChanged = true
+		}
+		transitionCount = d.ConsecutiveCount
+	} else {
+		d.ConsecutiveCount = 0
+		transitionCount = 0
+	}
+	d.LastRawState = rawState
+	return d.CurrentOfficialState, transitionCount, stateChanged
+}
+
 func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, analysisCfg AnalysisConfig, debugMode bool, mqttMgr *MQTTManager) {
 	ticker := time.NewTicker(defaultInterval)
 	defer ticker.Stop()
 
 	var lastFrame *FrameData
+	debouncer := NewStateDebouncer()
 
 	for {
 		select {
@@ -232,17 +275,16 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, analysisCfg
 			}
 
 			res := AnalyzeFrame(img, analysisCfg)
-			isPositive := res.BlueLightDetected
-
-			var resultStr string
-			if isPositive {
-				resultStr = "positive"
-			} else {
-				resultStr = "negative"
+			rawState := "negative"
+			if res.BlueLightDetected {
+				rawState = "positive"
 			}
 
+			oldOfficialState := debouncer.CurrentOfficialState
+			officialState, transitionCount, stateChanged := debouncer.Update(rawState)
+
 			if debugMode {
-				if err := saveSnapshotImage(img, resultStr); err != nil {
+				if err := saveSnapshotImage(img, rawState); err != nil {
 					fmt.Fprintf(os.Stderr, "Error saving snapshot image: %v\n", err)
 				}
 			}
@@ -250,8 +292,8 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, analysisCfg
 			// Publish to MQTT if active
 			if mqttMgr != nil {
 				lastDetectionTime := time.Now().Format(time.RFC3339)
-				mqttMgr.PublishState(resultStr)
-				mqttMgr.PublishAttributes(res.CurrentMode, res.AppliedThreshold, lastDetectionTime)
+				mqttMgr.PublishState(officialState)
+				mqttMgr.PublishAttributes(res.CurrentMode, analysisCfg.EnableNightMode, transitionCount, lastDetectionTime)
 			}
 
 			// Output detailed result only in debug mode
@@ -264,7 +306,13 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, analysisCfg
 					reason = fmt.Sprintf("condition not met: mode=%s, applied_threshold=%d, matching_pixels=%d, gray_variance=%.2f",
 						res.CurrentMode, res.AppliedThreshold, res.BluePixelCount, res.GrayscaleScore)
 				}
-				log.Printf("%s (%s)", resultStr, reason)
+				log.Printf("%s (%s)", rawState, reason)
+
+				if stateChanged {
+					log.Printf("[DEBUG] Raw detection: %s. Consecutive count for %s: 3/3. Current official MQTT state transitions to: %s.", rawState, rawState, officialState)
+				} else {
+					log.Printf("[DEBUG] Raw detection: %s. Consecutive count for %s: %d/3. Current official MQTT state remains: %s.", rawState, rawState, transitionCount, oldOfficialState)
+				}
 			}
 		}
 	}

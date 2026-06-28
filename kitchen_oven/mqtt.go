@@ -31,11 +31,12 @@ func BuildDiscoveryPayload(stateTopic, attributesTopic string) map[string]interf
 }
 
 // BuildAttributesPayload builds the attributes payload map.
-func BuildAttributesPayload(currentMode string, appliedThreshold int, lastDetectionTime string) map[string]interface{} {
+func BuildAttributesPayload(currentMode string, nightModeEnabled bool, consecutiveStateCount int, lastDetectionTime string) map[string]interface{} {
 	return map[string]interface{}{
-		"current_mode":        currentMode,
-		"applied_threshold":   appliedThreshold,
-		"last_detection_time": lastDetectionTime,
+		"current_mode":            currentMode,
+		"night_mode_enabled":      nightModeEnabled,
+		"consecutive_state_count": consecutiveStateCount,
+		"last_detection_time":     lastDetectionTime,
 	}
 }
 
@@ -80,6 +81,9 @@ func NewMQTTManager(broker, clientID, user, password, topicPrefix string, debug 
 		}
 		token := c.Publish(discoveryTopic, 1, true, payloadBytes)
 		token.Wait()
+		if err := token.Error(); err != nil {
+			log.Printf("Error publishing discovery payload: %v\n", err)
+		}
 	}
 
 	opts.OnConnectionLost = func(c mqtt.Client, err error) {
@@ -127,10 +131,13 @@ func (m *MQTTManager) PublishState(state string) {
 
 	token := m.client.Publish(m.stateTopic, 1, true, state)
 	token.Wait()
+	if err := token.Error(); err != nil {
+		log.Printf("Error publishing state: %v\n", err)
+	}
 }
 
 // PublishAttributes sends the serialized attributes JSON to the attributes topic.
-func (m *MQTTManager) PublishAttributes(currentMode string, appliedThreshold int, lastDetectionTime string) {
+func (m *MQTTManager) PublishAttributes(currentMode string, nightModeEnabled bool, consecutiveStateCount int, lastDetectionTime string) {
 	if m.client == nil || !m.client.IsConnected() {
 		if m.debug {
 			log.Printf("[DEBUG] Cannot publish attributes; MQTT client is not connected\n")
@@ -138,7 +145,7 @@ func (m *MQTTManager) PublishAttributes(currentMode string, appliedThreshold int
 		return
 	}
 
-	payload := BuildAttributesPayload(currentMode, appliedThreshold, lastDetectionTime)
+	payload := BuildAttributesPayload(currentMode, nightModeEnabled, consecutiveStateCount, lastDetectionTime)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshaling attributes payload: %v\n", err)
@@ -151,8 +158,8 @@ func (m *MQTTManager) PublishAttributes(currentMode string, appliedThreshold int
 
 	token := m.client.Publish(m.attributesTopic, 1, true, payloadBytes)
 	token.Wait()
-	if pubErr := token.Error(); pubErr != nil {
-		log.Printf("Error publishing attributes payload: %v\n", pubErr)
+	if err := token.Error(); err != nil {
+		log.Printf("Error publishing attributes: %v\n", err)
 	}
 }
 

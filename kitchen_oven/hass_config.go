@@ -14,6 +14,7 @@ type AppConfig struct {
 	NightLuminanceThreshold int
 	NightBlobMinSize        int
 	NightBlobMaxSize        int
+	EnableNightMode         bool
 	DebugMode               bool
 	MQTTBroker              string
 	MQTTClientID            string
@@ -34,6 +35,7 @@ func LoadAppConfig() (*AppConfig, error) {
 		NightLuminanceThreshold: 180,
 		NightBlobMinSize:        80,
 		NightBlobMaxSize:        400,
+		EnableNightMode:         true,
 		SensorPin:               14,
 		MQTTTopicPrefix:         "homeassistant",
 		MQTTClientID:            "kitchen-camera-cli",
@@ -52,6 +54,7 @@ func LoadAppConfig() (*AppConfig, error) {
 			NightLuminanceThreshold int    `json:"NIGHT_LUMINANCE_THRESHOLD"`
 			NightBlobMinSize        int    `json:"NIGHT_BLOB_MIN_SIZE"`
 			NightBlobMaxSize        int    `json:"NIGHT_BLOB_MAX_SIZE"`
+			EnableNightMode         *bool  `json:"ENABLE_NIGHT_MODE"`
 			DebugMode               bool   `json:"DEBUG_MODE"`
 			MQTTHost                string `json:"mqtt_host"`
 			MQTTPort                int    `json:"mqtt_port"`
@@ -78,6 +81,9 @@ func LoadAppConfig() (*AppConfig, error) {
 		}
 		if opts.NightBlobMaxSize > 0 {
 			cfg.NightBlobMaxSize = opts.NightBlobMaxSize
+		}
+		if opts.EnableNightMode != nil {
+			cfg.EnableNightMode = *opts.EnableNightMode
 		}
 		cfg.DebugMode = opts.DebugMode
 		cfg.MQTTUser = opts.MQTTUser
@@ -133,6 +139,10 @@ func LoadAppConfig() (*AppConfig, error) {
 		if val, err := strconv.Atoi(valStr); err == nil && val > 0 {
 			cfg.NightBlobMaxSize = val
 		}
+	}
+
+	if valStr := os.Getenv("ENABLE_NIGHT_MODE"); valStr == "false" {
+		cfg.EnableNightMode = false
 	}
 
 	if os.Getenv("DEBUG_MODE") == "true" {
