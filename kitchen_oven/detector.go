@@ -243,17 +243,7 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 						score -= (6.0 - blooming) * 2.0
 					}
 
-					cx := (minX + maxX) / 2
-					cy := (minY + maxY) / 2
-					cxRel := cx - bounds.Min.X
-					cyRel := cy - bounds.Min.Y
-					cxPct := float64(cxRel) / float64(width)
-					cyPct := float64(cyRel) / float64(height)
-
-					inROI1 := cxPct >= 0.62 && cxPct <= 0.67 && cyPct >= 0.76 && cyPct <= 0.83
-					inROI2 := cxPct >= 0.66 && cxPct <= 0.72 && cyPct >= 0.76 && cyPct <= 0.84
-
-					if !inROI1 && !inROI2 {
+					if !isInOvenROI(minX, maxX, minY, maxY, bounds) {
 						score = 0
 					}
 				} else {
@@ -385,7 +375,7 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 					aspectValid = aspect <= 3.0
 				}
 
-				if area >= cfg.DayColorThreshold && area <= 1000 && aspectValid {
+				if area >= cfg.DayColorThreshold && area <= 1000 && aspectValid && isInOvenROI(minX, maxX, minY, maxY, bounds) {
 					if area > maxMatchingArea {
 						maxMatchingArea = area
 					}
@@ -490,4 +480,25 @@ func absDiff(a, b uint32) uint32 {
 		return a - b
 	}
 	return b - a
+}
+
+// isInOvenROI checks if the center of a blob is within the predefined oven LED light ROIs.
+func isInOvenROI(minX, maxX, minY, maxY int, bounds image.Rectangle) bool {
+	width := bounds.Dx()
+	height := bounds.Dy()
+	if width < 2000 {
+		return true
+	}
+
+	cx := (minX + maxX) / 2
+	cy := (minY + maxY) / 2
+	cxRel := cx - bounds.Min.X
+	cyRel := cy - bounds.Min.Y
+	cxPct := float64(cxRel) / float64(width)
+	cyPct := float64(cyRel) / float64(height)
+
+	inROI1 := cxPct >= 0.62 && cxPct <= 0.67 && cyPct >= 0.76 && cyPct <= 0.83
+	inROI2 := cxPct >= 0.66 && cxPct <= 0.72 && cyPct >= 0.76 && cyPct <= 0.84
+
+	return inROI1 || inROI2
 }
