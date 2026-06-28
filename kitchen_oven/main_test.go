@@ -77,6 +77,103 @@ func TestAnalyzeFrame(t *testing.T) {
 			t.Errorf("expected blue light detected, but got false")
 		}
 	})
+
+	t.Run("margin exclusion on high-res frame", func(t *testing.T) {
+		// Image bounds: 1000x800.
+		// Margins: Y: Top 400 pixels are excluded (cy < 400), bottom 150 pixels are excluded (cy > 800 - 150 = 650).
+		//          X: Left 150 pixels are excluded (cx < 15% of 1000 = 150), right 150 pixels are excluded (cx > 85% of 1000 = 850).
+		// Center: (150 to 850, 400 to 650)
+		
+		// 1. Daytime (color) mode testing
+		// We'll set a blue blob (matching dayColorThreshold = 10) in various locations.
+		blueColor := color.RGBA{R: 50, G: 50, B: 240, A: 255}
+		redBackground := color.RGBA{R: 200, G: 0, B: 0, A: 255}
+		
+		// 1a. Blue blob in far-left excluded region (X: 50..53, Y: 500..502)
+		imgLeft := createTestImage(1000, 800, redBackground)
+		for y := 500; y < 503; y++ {
+			for x := 50; x < 54; x++ {
+				imgLeft.Set(x, y, blueColor)
+			}
+		}
+		res := AnalyzeFrame(imgLeft, cfg)
+		if res.BlueLightDetected {
+			t.Errorf("daytime: expected no detection in left margin, but got true")
+		}
+
+		// 1b. Blue blob in far-right excluded region (X: 900..903, Y: 500..502)
+		imgRight := createTestImage(1000, 800, redBackground)
+		for y := 500; y < 503; y++ {
+			for x := 900; x < 904; x++ {
+				imgRight.Set(x, y, blueColor)
+			}
+		}
+		res = AnalyzeFrame(imgRight, cfg)
+		if res.BlueLightDetected {
+			t.Errorf("daytime: expected no detection in right margin, but got true")
+		}
+
+		// 1c. Blue blob in active center region (X: 500..503, Y: 500..502)
+		imgCenter := createTestImage(1000, 800, redBackground)
+		for y := 500; y < 503; y++ {
+			for x := 500; x < 504; x++ {
+				imgCenter.Set(x, y, blueColor)
+			}
+		}
+		res = AnalyzeFrame(imgCenter, cfg)
+		if !res.BlueLightDetected {
+			t.Errorf("daytime: expected detection in center region, but got false")
+		}
+
+		// 2. Nighttime (grayscale) mode testing
+		// We'll set a bright blob (matching nightBlobMinSize = 80) in various locations.
+		// For grayscale mode, we need:
+		// - raw gray >= NightLuminanceThreshold (180)
+		// - maxGray >= 240
+		// - avgG >= 210
+		// - fill >= 0.40
+		// - aspect <= 2.5
+		// We can make a 10x10 square of pixels with gray=255.
+		// Area = 100 pixels, which is between NightBlobMinSize(80) and NightBlobMaxSize(400).
+		// Width = 10, Height = 10, aspect = 1.0 (<= 2.5), fill = 1.0 (>= 0.40), maxGray = 255, avgG = 255.
+		brightColor := color.Gray{Y: 255}
+
+		// 2a. Bright blob in far-left excluded region (center X = 55, center Y = 505)
+		imgNightLeft := createTestImage(1000, 800, color.Black)
+		for y := 500; y < 510; y++ {
+			for x := 50; x < 60; x++ {
+				imgNightLeft.Set(x, y, brightColor)
+			}
+		}
+		res = AnalyzeFrame(imgNightLeft, cfg)
+		if res.BlueLightDetected {
+			t.Errorf("nighttime: expected no detection in left margin, but got true")
+		}
+
+		// 2b. Bright blob in far-right excluded region (center X = 905, center Y = 505)
+		imgNightRight := createTestImage(1000, 800, color.Black)
+		for y := 500; y < 510; y++ {
+			for x := 900; x < 910; x++ {
+				imgNightRight.Set(x, y, brightColor)
+			}
+		}
+		res = AnalyzeFrame(imgNightRight, cfg)
+		if res.BlueLightDetected {
+			t.Errorf("nighttime: expected no detection in right margin, but got true")
+		}
+
+		// 2c. Bright blob in active center region (center X = 505, center Y = 505)
+		imgNightCenter := createTestImage(1000, 800, color.Black)
+		for y := 500; y < 510; y++ {
+			for x := 500; x < 510; x++ {
+				imgNightCenter.Set(x, y, brightColor)
+			}
+		}
+		res = AnalyzeFrame(imgNightCenter, cfg)
+		if !res.BlueLightDetected {
+			t.Errorf("nighttime: expected detection in center region, but got false")
+		}
+	})
 }
 
 func TestCameraSnapshotsIntegration(t *testing.T) {
