@@ -88,8 +88,8 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 		EnableNightMode:         true,
 	}
 
-	t.Run("negatives", func(t *testing.T) {
-		files, err := filepath.Glob("images/negative/*.jpg")
+	t.Run("daytime-negatives", func(t *testing.T) {
+		files, err := filepath.Glob("images/daytime-negative/*.jpg")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -116,8 +116,8 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("positives", func(t *testing.T) {
-		files, err := filepath.Glob("images/bluelight/*.jpg")
+	t.Run("daytime-positives", func(t *testing.T) {
+		files, err := filepath.Glob("images/daytime-positive/*.jpg")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -173,7 +173,7 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 	})
 
 	t.Run("night-positives", func(t *testing.T) {
-		files, err := filepath.Glob("images/night-bluelight/*.jpg")
+		files, err := filepath.Glob("images/night-positive/*.jpg")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,7 +209,7 @@ func TestCameraSnapshotsIntegration(t *testing.T) {
 			EnableNightMode:         false,
 		}
 
-		files, err := filepath.Glob("images/night-bluelight/*.jpg")
+		files, err := filepath.Glob("images/night-positive/*.jpg")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -286,7 +286,7 @@ func TestLoadAppConfig(t *testing.T) {
 		t.Setenv("DETECTION_THRESHOLD", "75")
 		// clear DAY_COLOR_THRESHOLD to test fallback
 		_ = os.Unsetenv("DAY_COLOR_THRESHOLD")
-		
+
 		cfg, err := LoadAppConfig()
 		if err != nil {
 			t.Fatal(err)
