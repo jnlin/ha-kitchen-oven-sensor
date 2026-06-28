@@ -293,7 +293,15 @@ func analyzerWorker(ctx context.Context, frameChan <-chan FrameData, analysisCfg
 			if mqttMgr != nil {
 				lastDetectionTime := time.Now().Format(time.RFC3339)
 				mqttMgr.PublishState(officialState)
-				mqttMgr.PublishAttributes(res.CurrentMode, analysisCfg.EnableNightMode, transitionCount, lastDetectionTime)
+				mqttMgr.PublishAttributes(AttributesPayload{
+					CurrentMode:           res.CurrentMode,
+					NightModeEnabled:      analysisCfg.EnableNightMode,
+					ConsecutiveStateCount: transitionCount,
+					LastDetectionTime:     lastDetectionTime,
+					MatchingPixels:        res.BluePixelCount,
+					AppliedThreshold:      res.AppliedThreshold,
+					GrayscaleScore:        res.GrayscaleScore,
+				})
 			}
 
 			// Output detailed result only in debug mode
