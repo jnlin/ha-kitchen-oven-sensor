@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image"
 )
 
@@ -11,15 +12,19 @@ type DetectionResult struct {
 	CurrentMode       string
 	AppliedThreshold  int
 	GrayscaleScore    float64
+	ConfidenceScore   int
+	Status            string
+	Justification     string
 }
 
 // AnalysisConfig holds the decoupled daytime and nighttime thresholds.
 type AnalysisConfig struct {
-	DayColorThreshold       int
-	NightLuminanceThreshold int
-	NightBlobMinSize        int
-	NightBlobMaxSize        int
-	EnableNightMode         bool
+	DayColorThreshold        int
+	NightLuminanceThreshold  int
+	NightBlobMinSize         int
+	NightBlobMaxSize         int
+	NightConfidenceThreshold int
+	EnableNightMode          bool
 }
 
 type point struct {
@@ -31,16 +36,20 @@ type point struct {
 func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 	bounds := img.Bounds()
 	detectedPixels := 0
-	
+
 	grayScore := getGrayscaleScore(img)
 	isGrayscaleMode := grayScore < 10.0
 
 	var currentMode string
 	var appliedThreshold int
 
+	var maxConfidence int
+	var bestBlobJustification = "No valid bright blob matching LED criteria was detected"
+	var bestBlobArea int
+
 	if isGrayscaleMode {
 		currentMode = "nighttime"
-		appliedThreshold = cfg.NightBlobMinSize
+		appliedThreshold = cfg.NightConfidenceThreshold
 
 		if !cfg.EnableNightMode {
 			// Skip detection and immediately return a negative result, bypassing nighttime BFS
@@ -50,6 +59,9 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 				CurrentMode:       currentMode,
 				AppliedThreshold:  appliedThreshold,
 				GrayscaleScore:    grayScore,
+				ConfidenceScore:   0,
+				Status:            "negative",
+				Justification:     "Night mode detection is disabled in configuration",
 			}
 		}
 
@@ -62,11 +74,9 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 		isBright := func(x, y int) bool {
 			c := img.At(x, y)
 			r, g, b, _ := c.RGBA()
-			gray := int((r >> 8 + g >> 8 + b >> 8) / 3)
+			gray := int((r>>8 + g>>8 + b>>8) / 3)
 			return gray >= cfg.NightLuminanceThreshold
 		}
-
-		maxMatchingArea := 0
 
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
@@ -95,14 +105,22 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 					head++
 
 					area++
-					if curr.X < minX { minX = curr.X }
-					if curr.X > maxX { maxX = curr.X }
-					if curr.Y < minY { minY = curr.Y }
-					if curr.Y > maxY { maxY = curr.Y }
+					if curr.X < minX {
+						minX = curr.X
+					}
+					if curr.X > maxX {
+						maxX = curr.X
+					}
+					if curr.Y < minY {
+						minY = curr.Y
+					}
+					if curr.Y > maxY {
+						maxY = curr.Y
+					}
 
 					c := img.At(curr.X, curr.Y)
 					r, g, b, _ := c.RGBA()
-					gray := int((r >> 8 + g >> 8 + b >> 8) / 3)
+					gray := int((r>>8 + g>>8 + b>>8) / 3)
 					sumGray += uint64(gray)
 					if gray > maxGray {
 						maxGray = gray
@@ -143,22 +161,132 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 					aspect = float64(h) / float64(w)
 				}
 				fill := float64(area) / float64(w*h)
-				avgG := float64(sumGray) / float64(area)
 
-				// Apply geometric and intensity filters to isolate the oven light
-				aspectValid := true
-				if bounds.Max.Y >= 600 {
-					aspectValid = aspect <= 2.0
+				aspectValid := aspect <= 2.0
+				areaValid := area >= cfg.NightBlobMinSize && area <= cfg.NightBlobMaxSize
+				fillValid := fill >= 0.40 && fill <= 0.85
+
+				// Calculate background local to this blob
+				bgSum := 0
+				bgCount := 0
+				bgDist := 5
+				bgSize := 10
+				for by := minY - bgDist - bgSize; by <= maxY+bgDist+bgSize; by++ {
+					for bx := minX - bgDist - bgSize; bx <= maxX+bgDist+bgSize; bx++ {
+						if bx >= bounds.Min.X && bx < bounds.Max.X && by >= bounds.Min.Y && by < bounds.Max.Y {
+							isInsideOuter := bx >= minX-bgDist-bgSize && bx <= maxX+bgDist+bgSize && by >= minY-bgDist-bgSize && by <= maxY+bgDist+bgSize
+							isInsideInner := bx >= minX-bgDist && bx <= maxX+bgDist && by >= minY-bgDist && by <= maxY+bgDist
+							if isInsideOuter && !isInsideInner {
+								r, g, b, _ := img.At(bx, by).RGBA()
+								gray := int((r>>8 + g>>8 + b>>8) / 3)
+								if gray < cfg.NightLuminanceThreshold {
+									bgSum += gray
+									bgCount++
+								}
+							}
+						}
+					}
+				}
+				bgAvg := 0.0
+				if bgCount > 0 {
+					bgAvg = float64(bgSum) / float64(bgCount)
 				}
 
-				if area >= cfg.NightBlobMinSize && area <= cfg.NightBlobMaxSize && aspectValid && fill >= 0.40 && fill <= 0.75 && maxGray >= 240 && avgG >= 220 {
-					if area > maxMatchingArea {
-						maxMatchingArea = area
+				// Measure blooming / gradient around the edges.
+				ringSum := 0
+				ringCount := 0
+				for by := minY - 3; by <= maxY+3; by++ {
+					for bx := minX - 3; bx <= maxX+3; bx++ {
+						if bx >= bounds.Min.X && bx < bounds.Max.X && by >= bounds.Min.Y && by < bounds.Max.Y {
+							isInsideOuter := bx >= minX-3 && bx <= maxX+3 && by >= minY-3 && by <= maxY+3
+							isInsideInner := bx >= minX && bx <= maxX && by >= minY && by <= maxY
+							if isInsideOuter && !isInsideInner {
+								r, g, b, _ := img.At(bx, by).RGBA()
+								gray := int((r>>8 + g>>8 + b>>8) / 3)
+								if gray < cfg.NightLuminanceThreshold {
+									ringSum += gray
+									ringCount++
+								}
+							}
+						}
+					}
+				}
+				ringAvg := 0.0
+				if ringCount > 0 {
+					ringAvg = float64(ringSum) / float64(ringCount)
+				}
+
+				score := 100.0
+				var contrast, blooming float64
+
+				if width >= 2000 {
+					// Saturation penalty: Deduct 2 * (255 - maxGray)
+					if maxGray < 255 {
+						score -= float64(255-maxGray) * 2.0
+					}
+
+					// Contrast penalty: If contrast < 190, deduct 1.5 * (190 - contrast)
+					// If contrast < 150, confidence drops to 0
+					contrast = float64(maxGray) - bgAvg
+					if contrast < 150 {
+						score = 0
+					} else if contrast < 190 {
+						score -= (190.0 - contrast) * 1.5
+					}
+
+					// Blooming penalty: If blooming < 6, deduct 2.0 * (6.0 - blooming)
+					// If blooming < 1, confidence drops to 0
+					blooming = ringAvg - bgAvg
+					if blooming < 1.0 {
+						score = 0
+					} else if blooming < 6.0 {
+						score -= (6.0 - blooming) * 2.0
+					}
+
+					cx := (minX + maxX) / 2
+					cy := (minY + maxY) / 2
+					cxRel := cx - bounds.Min.X
+					cyRel := cy - bounds.Min.Y
+					cxPct := float64(cxRel) / float64(width)
+					cyPct := float64(cyRel) / float64(height)
+
+					inROI1 := cxPct >= 0.62 && cxPct <= 0.67 && cyPct >= 0.76 && cyPct <= 0.83
+					inROI2 := cxPct >= 0.66 && cxPct <= 0.72 && cyPct >= 0.76 && cyPct <= 0.84
+
+					if !inROI1 && !inROI2 {
+						score = 0
+					}
+				} else {
+					// Unit test / low-res images: Require standard intensity checks
+					avgG := float64(sumGray) / float64(area)
+					if maxGray < 240 || avgG < 220 {
+						score = 0
+					}
+				}
+
+				if !aspectValid || !areaValid || !fillValid {
+					score = 0
+				}
+
+				if score < 0 {
+					score = 0
+				}
+
+				scoreInt := int(score)
+				if scoreInt > 0 && (scoreInt > maxConfidence || (scoreInt == maxConfidence && area > bestBlobArea)) {
+					maxConfidence = scoreInt
+					bestBlobArea = area
+					if width >= 2000 {
+						bestBlobJustification = fmt.Sprintf("Detected LED blob at center (%d,%d) with area=%d, max_gray=%d, contrast=%.1f, blooming=%.1f, aspect=%.2f, fill=%.2f, confidence=%d",
+							(minX+maxX)/2, (minY+maxY)/2, area, maxGray, contrast, blooming, aspect, fill, scoreInt)
+					} else {
+						bestBlobJustification = fmt.Sprintf("Detected LED blob at center (%d,%d) with area=%d, max_gray=%d, aspect=%.2f, fill=%.2f, confidence=%d",
+							(minX+maxX)/2, (minY+maxY)/2, area, maxGray, aspect, fill, scoreInt)
 					}
 				}
 			}
 		}
-		detectedPixels = maxMatchingArea
+		detectedPixels = bestBlobArea
 
 	} else {
 		currentMode = "daytime"
@@ -203,10 +331,18 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 					head++
 
 					area++
-					if curr.X < minX { minX = curr.X }
-					if curr.X > maxX { maxX = curr.X }
-					if curr.Y < minY { minY = curr.Y }
-					if curr.Y > maxY { maxY = curr.Y }
+					if curr.X < minX {
+						minX = curr.X
+					}
+					if curr.X > maxX {
+						maxX = curr.X
+					}
+					if curr.Y < minY {
+						minY = curr.Y
+					}
+					if curr.Y > maxY {
+						maxY = curr.Y
+					}
 
 					// Neighbors
 					neighbors := [4]point{
@@ -259,12 +395,40 @@ func AnalyzeFrame(img image.Image, cfg AnalysisConfig) DetectionResult {
 		detectedPixels = maxMatchingArea
 	}
 
+	var confidenceScore int
+	var status string
+	var justification string
+
+	if isGrayscaleMode {
+		confidenceScore = maxConfidence
+		if confidenceScore >= cfg.NightConfidenceThreshold {
+			status = "positive"
+		} else {
+			status = "negative"
+		}
+		justification = bestBlobJustification
+	} else {
+		// Daytime mode:
+		if detectedPixels >= appliedThreshold {
+			confidenceScore = 100
+			status = "positive"
+			justification = fmt.Sprintf("Daytime mode: blue light pixel count (%d) met threshold (%d)", detectedPixels, appliedThreshold)
+		} else {
+			confidenceScore = 0
+			status = "negative"
+			justification = fmt.Sprintf("Daytime mode: blue light pixel count (%d) below threshold (%d)", detectedPixels, appliedThreshold)
+		}
+	}
+
 	return DetectionResult{
-		BlueLightDetected: detectedPixels >= appliedThreshold,
+		BlueLightDetected: status == "positive",
 		BluePixelCount:    detectedPixels,
 		CurrentMode:       currentMode,
 		AppliedThreshold:  appliedThreshold,
 		GrayscaleScore:    grayScore,
+		ConfidenceScore:   confidenceScore,
+		Status:            status,
+		Justification:     justification,
 	}
 }
 

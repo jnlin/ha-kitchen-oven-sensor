@@ -25,6 +25,9 @@ type AttributesPayload struct {
 	MatchingPixels        int     `json:"matching_pixels"`
 	AppliedThreshold      int     `json:"applied_threshold"`
 	GrayscaleScore        float64 `json:"gray_variance"`
+	ConfidenceScore       int     `json:"confidence_score"`
+	Status                string  `json:"status"`
+	Justification         string  `json:"justification"`
 }
 
 // BuildDiscoveryPayload builds the HA discovery registration map.
